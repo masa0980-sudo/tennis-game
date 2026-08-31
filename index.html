@@ -63,14 +63,28 @@
     border:2px dashed rgba(255,255,255,.3); border-radius:999px; }
   .zone.armed{ border-color:var(--accent); box-shadow:0 0 16px rgba(56,189,248,.5); }
 
-  .playerWrap{ position:absolute; left:50%; bottom:2%; transform:translateX(-50%); }
+  /* キャラが左右にゆらゆら動き続ける演出。ゾーン中央からの追加オフセットとして
+     translateX(-50%)の後ろに重ねるので、中央寄せの位置決めとは干渉しない */
+  @keyframes swayPlayer{
+    0%, 100% { transform: translateX(-50%) translateX(-34px); }
+    50%      { transform: translateX(-50%) translateX(34px); }
+  }
+  @keyframes swayOpponent{
+    0%, 100% { transform: translateX(-50%) translateX(28px); }
+    50%      { transform: translateX(-50%) translateX(-28px); }
+  }
+
+  .playerWrap{ position:absolute; left:50%; bottom:2%;
+    animation: swayPlayer 2.4s ease-in-out infinite; }
   .playerWrap img{ width:96px; height:auto; transition: transform .12s; }
   .playerWrap.hit img{ transform: scale(1.18) rotate(-6deg); }
   .playerWrap.miss img{ transform: scale(.9) rotate(8deg); filter:grayscale(.5); }
 
   /* 相手キャラ。自分側(.playerWrap)と対になる位置(画面上端)に置く。
-     顔を上下逆さにすると表情が崩れるので、向きはそのままにする */
-  .opponentWrap{ position:absolute; left:50%; top:2%; transform:translateX(-50%); }
+     顔を上下逆さにすると表情が崩れるので、向きはそのままにする。
+     自分側と揺れの向き・周期をずらして、動きが合わせ鏡にならないようにしている */
+  .opponentWrap{ position:absolute; left:50%; top:2%;
+    animation: swayOpponent 2.8s ease-in-out infinite; }
   .opponentWrap img{ width:80px; height:auto; transition: transform .12s; }
   .opponentWrap.hit img{ transform: scale(1.18) rotate(6deg); }
 
