@@ -68,6 +68,12 @@
   .playerWrap.hit img{ transform: scale(1.18) rotate(-6deg); }
   .playerWrap.miss img{ transform: scale(.9) rotate(8deg); filter:grayscale(.5); }
 
+  /* 相手キャラ。自分側(.playerWrap)と対になる位置(画面上端)に置く。
+     顔を上下逆さにすると表情が崩れるので、向きはそのままにする */
+  .opponentWrap{ position:absolute; left:50%; top:2%; transform:translateX(-50%); }
+  .opponentWrap img{ width:80px; height:auto; transition: transform .12s; }
+  .opponentWrap.hit img{ transform: scale(1.18) rotate(6deg); }
+
   .tapHint{ font-size:12px; color:#9aa4c4; }
 
   .flash{ position:absolute; inset:0; pointer-events:none; opacity:0; }
@@ -101,6 +107,7 @@
     </div>
     <div class="court" id="court">
       <div class="netLine"></div>
+      <div class="opponentWrap" id="opponentWrap"><img id="opponentImg" alt=""></div>
       <div class="zone" id="zone"></div>
       <div class="ball" id="ball"></div>
       <div class="playerWrap" id="playerWrap"><img id="playerImg" alt=""></div>
@@ -170,6 +177,12 @@
     return c ? c.file : CHARACTERS[0].file;
   }
 
+  // 相手は「選ばなかった方」を自動で採用する(2体しかいないので選択UIは要らない)
+  function opponentFile(id){
+    const opp = CHARACTERS.find(function(x){ return x.id !== id; });
+    return opp ? opp.file : CHARACTERS[1].file;
+  }
+
   /* =========================================================
      2. スコア(ベスト)
      ========================================================= */
@@ -185,8 +198,9 @@
 
   /* =========================================================
      3. ゲーム本体
-     演出(当たったときのエフェクト強化・相手側の動き・BGM等)は今回のスコープ外。
-     まずは「タイミングよく打つと返せる」コア操作だけを作る。
+     自分と相手、両方のキャラを画面に出し、ボールを打ち合っているように見せる。
+     ただしタイミング判定があるのは自分の番(toPlayer)だけ。相手は必ず打ち返す
+     (相手のミスは無い)。BGM・コンボ表示などのさらなる演出は今回のスコープ外。
      ========================================================= */
   const TennisGame = (function(){
     const START_DURATION = 1300;   // 最初のボール到達までの時間(ms)
@@ -194,15 +208,21 @@
     const DURATION_STEP = 55;      // 1回成功するごとに詰める量(ms)
     const WINDOW_MS = 230;         // 到達時刻より前、これだけ早くから成功にする
     const GRACE_MS = 110;          // 到達時刻より後、これだけ遅くても成功にする
+    const OPPONENT_Y = "10%";      // ボールの相手側の折り返し位置
+    const PLAYER_Y = "78%";        // ボールの自分側の折り返し位置(=zoneの位置)
+    const RETURN_PAUSE = 180;      // 相手が打ち返すまでの間(演出用の一呼吸)
 
-    let phase = "idle";            // idle | falling | resolved
+    // idle | toPlayer(自分へ向かっている・入力を受ける) |
+    // toOpponent(相手へ向かっている・入力は無視) | resolved(ミス確定)
+    let phase = "idle";
     let duration = START_DURATION;
     let launchAt = 0;
     let rally = 0;
     let autoMissTimer = null;
 
     function el(){
-      return { ball: $("ball"), zone: $("zone"), player: $("playerWrap"), flash: $("flash") };
+      return { ball: $("ball"), zone: $("zone"), player: $("playerWrap"),
+        opponent: $("opponentWrap"), flash: $("flash") };
     }
 
     function flash(kind){
@@ -213,38 +233,59 @@
       f.classList.add("show");
     }
 
-    function launchBall(){
-      phase = "falling";
+    function bounce(wrap){
+      wrap.classList.remove("hit");
+      void wrap.offsetWidth;
+      wrap.classList.add("hit");
+      setTimeout(function(){ wrap.classList.remove("hit"); }, 160);
+    }
+
+    // toPlayer: 相手→自分。ここだけタイミング入力を受け付ける
+    function launchToPlayer(){
+      phase = "toPlayer";
       launchAt = performance.now();
       const b = el().ball;
       b.classList.remove("hidden");
       b.style.transition = "none";
-      b.style.top = "10%";
-      // 強制リフローしてから transition を効かせる
-      void b.offsetWidth;
+      b.style.top = OPPONENT_Y;
+      void b.offsetWidth; // 強制リフローしてから transition を効かせる
       b.style.transition = "top " + duration + "ms linear";
-      b.style.top = "78%";
+      b.style.top = PLAYER_Y;
       el().zone.classList.add("armed");
 
       clearTimeout(autoMissTimer);
       autoMissTimer = setTimeout(function(){
-        if (phase === "falling") miss();
+        if (phase === "toPlayer") miss();
       }, duration + GRACE_MS);
     }
 
+    // toOpponent: 自分の返球成功後、自分→相手。入力は無視し、相手は必ず打ち返す
+    function launchToOpponent(){
+      phase = "toOpponent";
+      const b = el().ball;
+      b.style.transition = "none";
+      b.style.top = PLAYER_Y;
+      void b.offsetWidth;
+      b.style.transition = "top " + duration + "ms linear";
+      b.style.top = OPPONENT_Y;
+
+      setTimeout(function(){
+        bounce(el().opponent);
+        setTimeout(launchToPlayer, RETURN_PAUSE);
+      }, duration);
+    }
+
     function hit(){
-      phase = "resolved";
       clearTimeout(autoMissTimer);
       rally += 1;
       $("rallyVal").textContent = String(rally);
       flash("good");
       el().player.classList.remove("miss");
-      el().player.classList.add("hit");
-      el().ball.classList.add("hidden");
-      setTimeout(function(){ el().player.classList.remove("hit"); }, 160);
+      bounce(el().player);
+      el().zone.classList.remove("armed");
 
       duration = Math.max(MIN_DURATION, duration - DURATION_STEP);
-      setTimeout(launchBall, 260);
+      launchToOpponent();
     }
 
     function miss(){
@@ -257,7 +298,7 @@
     }
 
     function onAction(){
-      if (phase !== "falling") return;
+      if (phase !== "toPlayer") return;
       const elapsed = performance.now() - launchAt;
       const early = duration - WINDOW_MS;
       const late = duration + GRACE_MS;
@@ -282,11 +323,13 @@
       $("rallyVal").textContent = "0";
       $("bestVal").textContent = String(loadBest());
       $("playerImg").src = charFile(selectedChar);
+      $("opponentImg").src = opponentFile(selectedChar);
       el().player.classList.remove("hit","miss");
+      el().opponent.classList.remove("hit");
       el().zone.classList.remove("armed");
       el().ball.classList.remove("hidden");
       show("play");
-      setTimeout(launchBall, 400);
+      setTimeout(launchToPlayer, 400);
     }
 
     // Playwright など外部からタイミングを検証できるように、最小限の状態だけ公開する
