@@ -45,13 +45,29 @@
     font-variant-numeric:tabular-nums; font-size:13px; color:#9aa4c4; }
   .hud b{ color:#fff; font-size:20px; display:block; }
 
+  /* テニスコート風の背景。芝(グリーン)の地に、シングルスのサイドライン・
+     サービスラインを白線で描く。実寸どおりの比率ではなく、あくまで
+     「テニスコートらしく見える」ことを優先した簡略デザイン */
   .court{ position:relative; width:100%; max-width:420px; flex:1; margin:8px 0;
     background:
-      linear-gradient(180deg, rgba(56,189,248,.06), transparent 40%),
-      repeating-linear-gradient(180deg, rgba(255,255,255,.05) 0 2px, transparent 2px 40px);
-    border:1px solid rgba(255,255,255,.12); border-radius:20px; overflow:hidden; }
-  .netLine{ position:absolute; left:8%; right:8%; top:14%; height:2px;
-    background:repeating-linear-gradient(90deg,#fff 0 8px,transparent 8px 16px); opacity:.5; }
+      /* サービスライン(相手側・自分側) */
+      linear-gradient(transparent 0 30%, rgba(255,255,255,.4) 30% calc(30% + 2px), transparent calc(30% + 2px) 100%),
+      linear-gradient(transparent 0 70%, rgba(255,255,255,.4) 70% calc(70% + 2px), transparent calc(70% + 2px) 100%),
+      /* センターサービスライン(コート中央の短い縦線) */
+      linear-gradient(90deg, transparent calc(50% - 1px), rgba(255,255,255,.4) calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px)) 0 30% / 100% 40% no-repeat,
+      /* シングルスのサイドライン(左右) */
+      linear-gradient(90deg,
+        transparent 0 10%, rgba(255,255,255,.55) 10% calc(10% + 2px), transparent calc(10% + 2px) 90%,
+        rgba(255,255,255,.55) 90% calc(90% + 2px), transparent calc(90% + 2px) 100%),
+      /* コート地(芝グリーン。奥/手前でわずかに濃淡を付けて奥行きを出す) */
+      linear-gradient(180deg, #1f6b4f, #1c6349 40%, #14432f);
+    border:3px solid rgba(255,255,255,.6); border-radius:14px; overflow:hidden; }
+  .netLine{ position:absolute; left:6%; right:6%; top:50%; height:6px; margin-top:-3px;
+    background:
+      repeating-linear-gradient(90deg, rgba(10,20,15,.9) 0 6px, transparent 6px 7px),
+      linear-gradient(#fff, #fff) top / 100% 2px no-repeat,
+      #0d1f17;
+    box-shadow:0 2px 4px rgba(0,0,0,.4); }
 
   .ball{ position:absolute; left:50%; top:10%; width:26px; height:26px; margin-left:-13px;
     border-radius:50%; background:radial-gradient(circle at 35% 30%, #fff, #ffd54a 55%, #f3a712 100%);
