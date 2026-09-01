@@ -46,6 +46,10 @@
   .hud b{ color:#fff; font-size:26px; display:block; }
   .hud .you b{ color:#7dd3fc; }
   .hud .cpu b{ color:#f0abfc; }
+  .deuceNote{ align-self:center; font-size:11px; font-weight:800; letter-spacing:.08em;
+    color:#fde68a; padding:3px 10px; border-radius:999px; background:rgba(253,230,138,.14);
+    border:1px solid rgba(253,230,138,.4); }
+  .deuceNote[hidden]{ display:none; }
 
   /* テニスコート風の背景。芝(グリーン)の地に、シングルスのサイドライン・
      サービスラインを白線で描く。実寸どおりの比率ではなく、あくまで
@@ -140,6 +144,7 @@
   <section id="play" class="screen">
     <div class="hud">
       <span class="you">あなた<b id="playerScore">0</b></span>
+      <span class="deuceNote" id="deuceNote" hidden>デュース</span>
       <span class="cpu">相手<b id="opponentScore">0</b></span>
     </div>
     <div class="court" id="court">
@@ -264,9 +269,31 @@
   function setRng(fn){ rand = (typeof fn === "function") ? fn : Math.random; }
 
   /* =========================================================
-     4. スコア(ベスト勝率などは今回スコープ外。1ゲームの勝敗だけを見る)
+     4. スコア — 本物のテニス採点(0/15/30/40、デュース/アドバンテージ)。
+     DOMに触れない純粋関数にし、生の得点(pointsFor/pointsAgainst)から
+     毎回ラベルを導出する(セット・マッチはスコープ外、1ゲームの勝敗のみ)。
      ========================================================= */
-  const WIN_POINTS = 5; // 先に5ポイント取った方の勝ち(本物のテニス採点は次段階で入れる)
+  function scoreLabels(pointsFor, pointsAgainst){
+    if (pointsFor >= 4 && pointsFor - pointsAgainst >= 2) {
+      return { forLabel:"ゲーム", againstLabel:"-", gameOver:true, winner:"for" };
+    }
+    if (pointsAgainst >= 4 && pointsAgainst - pointsFor >= 2) {
+      return { forLabel:"-", againstLabel:"ゲーム", gameOver:true, winner:"against" };
+    }
+    if (pointsFor >= 3 && pointsAgainst >= 3) {
+      if (pointsFor === pointsAgainst) {
+        return { forLabel:"40", againstLabel:"40", deuce:true };
+      }
+      const forAhead = pointsFor > pointsAgainst;
+      return {
+        forLabel: forAhead ? "AD" : "40",
+        againstLabel: forAhead ? "40" : "AD",
+        advantage: forAhead ? "for" : "against",
+      };
+    }
+    const L = ["0","15","30","40"];
+    return { forLabel:L[pointsFor], againstLabel:L[pointsAgainst] };
+  }
 
   /* =========================================================
      5. ゲーム本体
@@ -283,6 +310,7 @@
     const GRACE_MS = 120;           // 到達時刻より後、これだけ遅くても成功にする
     const ARC_HEIGHT = 42;          // ボールの山なり演出(px)
     const RETURN_PAUSE = 160;
+    const SMART_RETURN_CHANCE = 0.35; // 相手がプレイヤーから遠い側を狙う確率(かしこい返球)
 
     // "serve" | "ballToPlayer" | "ballToOpponent" | "pointOver" | "gameOver"
     let phase = "serve";
@@ -299,6 +327,8 @@
     let opponentReactAt = 0;
 
     const score = { player:0, opponent:0 };
+    let lastLabels = scoreLabels(0, 0);
+    let lastSmartReturn = false;
 
     function el(){
       return { ball: $("ball"), shadow: $("ballShadow"), reach: $("reach"),
@@ -331,6 +361,12 @@
       const offset = receiverX - ballX;           // 概ね -REACH〜+REACH
       const target = 50 - offset * 2.6;
       return clamp(target, 6, 94);
+    }
+
+    /** かしこい返球: プレイヤーの現在位置から一番遠いコートの端を狙い、
+        追いつくために大きく動かざるを得ない状況を作る。 */
+    function aimAwayFromPlayer(playerX){
+      return playerX < 50 ? 90 : 10;
     }
 
     function renderCourt(now){
@@ -406,7 +442,8 @@
       const reached = canReach(opponent.x, ball.targetX);
       if (!reached) { pointFor("player"); return; }
       bounce(el().opponent, "hit");
-      const targetX = aimFromContact(opponent.x, ball.targetX);
+      lastSmartReturn = rand() < SMART_RETURN_CHANCE;
+      const targetX = lastSmartReturn ? aimAwayFromPlayer(player.x) : aimFromContact(opponent.x, ball.targetX);
       setTimeout(function(){
         duration = Math.max(MIN_DURATION, duration - DURATION_STEP);
         phase = "ballToPlayer";
@@ -461,9 +498,11 @@
     function pointFor(who){
       phase = "pointOver";
       score[who] += 1;
-      $("playerScore").textContent = String(score.player);
-      $("opponentScore").textContent = String(score.opponent);
-      if (score.player >= WIN_POINTS || score.opponent >= WIN_POINTS) {
+      lastLabels = scoreLabels(score.player, score.opponent);
+      $("playerScore").textContent = lastLabels.forLabel;
+      $("opponentScore").textContent = lastLabels.againstLabel;
+      $("deuceNote").hidden = !lastLabels.deuce;
+      if (lastLabels.gameOver) {
         setTimeout(finish, 500);
       } else {
         setTimeout(function(){ phase = "serve"; launchToPlayer(); }, 500);
@@ -471,7 +510,7 @@
     }
 
     function finish(){
-      const win = score.player > score.opponent;
+      const win = lastLabels.winner === "for";
       $("rankVal").textContent = win ? "WIN" : "LOSE";
       $("resultPlayer").textContent = String(score.player);
       $("resultOpponent").textContent = String(score.opponent);
@@ -481,11 +520,14 @@
 
     function begin(){
       score.player = 0; score.opponent = 0;
+      lastLabels = scoreLabels(0, 0);
+      lastSmartReturn = false;
       duration = START_DURATION;
       player.x = 50; opponent.x = 50;
       phase = "serve";
-      $("playerScore").textContent = "0";
-      $("opponentScore").textContent = "0";
+      $("playerScore").textContent = lastLabels.forLabel;
+      $("opponentScore").textContent = lastLabels.againstLabel;
+      $("deuceNote").hidden = true;
       $("playerImg").src = charFile(selectedChar);
       $("opponentImg").src = opponentFile(selectedChar);
       el().player.classList.remove("hit","miss","whiff");
@@ -520,14 +562,22 @@
           targetX: ball.targetX, targetY: ball.targetY,
           flightStart: ball.flightStart, flightDuration: ball.flightDuration },
         player: { x: player.x, min: player.min, max: player.max },
-        opponent: { x: opponent.x, targetX: ball.targetX },
+        opponent: { x: opponent.x, targetX: ball.targetX, smartReturn: lastSmartReturn },
         reachRadius: REACH_RADIUS,
         windowMs: WINDOW_MS, graceMs: GRACE_MS,
-        score: { player: score.player, opponent: score.opponent },
+        score: {
+          pointsPlayer: score.player, pointsOpponent: score.opponent,
+          playerLabel: lastLabels.forLabel, opponentLabel: lastLabels.againstLabel,
+          deuce: !!lastLabels.deuce, advantage: lastLabels.advantage || null,
+          gameOver: !!lastLabels.gameOver, winner: lastLabels.winner || null,
+        },
       };
     }
 
-    return { begin: begin, onAction: onAction, setKey: setKey, debugState: debugState, setRng: setRng };
+    return {
+      begin: begin, onAction: onAction, setKey: setKey, debugState: debugState, setRng: setRng,
+      scoreLabels: scoreLabels,
+    };
   })();
 
   /* =========================================================
