@@ -85,30 +85,23 @@
     transition: left .05s linear; }
   .reach.armed{ border-color:var(--accent); box-shadow:0 0 16px rgba(56,189,248,.5); }
 
+  /* キャラの向き(--flip: 1=通常/-1=左右反転)は素材が左向きに描かれているため、
+     右へ移動するときだけ反転する。ヒット/ミス演出のtransformはこの反転と
+     衝突しないよう、必ずscaleX(var(--flip,1))を先頭に合成する。 */
   .charWrap{ position:absolute; z-index:5; transition:left .05s linear; }
-  .charWrap img{ width:88px; height:auto; transition: transform .12s; }
-  .charWrap.hit img{ transform: scale(1.16) rotate(-6deg); }
-  .charWrap.miss img{ transform: scale(.92) rotate(8deg); filter:grayscale(.5); }
-  .charWrap.whiff img{ transform: rotate(-14deg); }
+  .charWrap img{ width:88px; height:auto; transition: transform .12s;
+    transform: scaleX(var(--flip,1)); }
+  .charWrap.hit img{ transform: scaleX(var(--flip,1)) scale(1.16) rotate(-6deg); }
+  .charWrap.miss img{ transform: scaleX(var(--flip,1)) scale(.92) rotate(8deg); filter:grayscale(.5); }
+  .charWrap.whiff img{ transform: scaleX(var(--flip,1)) rotate(-14deg); }
 
   .playerWrap{ bottom:2%; transform:translateX(-50%); }
   .playerWrap img{ width:92px; }
-  .playerWrap.hit img{ transform: scale(1.18) rotate(-6deg); }
+  .playerWrap.hit img{ transform: scaleX(var(--flip,1)) scale(1.18) rotate(-6deg); }
 
   .opponentWrap{ top:2%; transform:translateX(-50%); }
   .opponentWrap img{ width:78px; }
-  .opponentWrap.hit img{ transform: scale(1.18) rotate(6deg); }
-
-  .racket{ position:absolute; width:28px; height:48px; pointer-events:none;
-    transition: transform .16s cubic-bezier(.2,1.4,.4,1); }
-  .racket svg{ width:100%; height:100%; display:block; }
-
-  .playerRacket{ right:-6px; bottom:24px; transform-origin:50% 92%; transform:rotate(28deg); }
-  .playerWrap.hit .playerRacket{ transform:rotate(-95deg); }
-  .playerWrap.whiff .playerRacket{ transform:rotate(-70deg); }
-
-  .opponentRacket{ left:-6px; top:24px; transform-origin:50% 8%; transform:rotate(-28deg) scale(-1,-1); }
-  .opponentWrap.hit .opponentRacket{ transform:rotate(95deg) scale(-1,-1); }
+  .opponentWrap.hit img{ transform: scaleX(var(--flip,1)) scale(1.18) rotate(6deg); }
 
   .tapHint{ font-size:12px; color:#9aa4c4; }
 
@@ -151,26 +144,12 @@
       <div class="netLine"></div>
       <div class="opponentWrap charWrap" id="opponentWrap">
         <img id="opponentImg" alt="">
-        <div class="racket opponentRacket">
-          <svg viewBox="0 0 30 52" aria-hidden="true">
-            <ellipse cx="15" cy="16" rx="12" ry="15" fill="none" stroke="#e5e7eb" stroke-width="2.5"/>
-            <path d="M6 16H24M15 3V29M9 8L21 24M21 8L9 24" stroke="#e5e7eb" stroke-width=".8" opacity=".6"/>
-            <rect x="12" y="30" width="6" height="20" rx="3" fill="#b5773a"/>
-          </svg>
-        </div>
       </div>
       <div class="reach" id="reach"></div>
       <div class="ballShadow" id="ballShadow"></div>
       <div class="ball" id="ball"></div>
       <div class="playerWrap charWrap" id="playerWrap">
         <img id="playerImg" alt="">
-        <div class="racket playerRacket">
-          <svg viewBox="0 0 30 52" aria-hidden="true">
-            <ellipse cx="15" cy="16" rx="12" ry="15" fill="none" stroke="#e5e7eb" stroke-width="2.5"/>
-            <path d="M6 16H24M15 3V29M9 8L21 24M21 8L9 24" stroke="#e5e7eb" stroke-width=".8" opacity=".6"/>
-            <rect x="12" y="30" width="6" height="20" rx="3" fill="#b5773a"/>
-          </svg>
-        </div>
       </div>
       <div class="flash" id="flash"></div>
     </div>
@@ -212,13 +191,15 @@
   /* =========================================================
      1. キャラクター
      ========================================================= */
-  // 画像は LINEスタンプ(stamp_01_funifuni2026.png / stamp_02_kotokoto2026.png)から
-  // 1ポーズだけ切り出したもの。スポーティなキャラ絵に差し替える予定だが、
-  // 素材が届くまではこの仮素材で操作感を作る(ポーズはCSSクラスで切り替えられる
-  // 構造にしてあるので、差し替え自体は画像パスの変更だけで済む)。
+  // 各キャラクター4ポーズ(idle/run/swing)のスポーティ画像。fal.aiで生成した
+  // ものを元のLINEスタンプ(stamp_01_funifuni2026.png / stamp_02_kotokoto2026.png)
+  // のシルエット・表情を踏襲しつつ差し替えた。run-left/run-rightは1枚の
+  // run画像をCSSで左右反転(--flip)して兼用する(素材は左向きに描かれている)。
   const CHARACTERS = [
-    { id:"funifuni", name:"ふにふに", file:"art/funifuni.png" },
-    { id:"kotokoto", name:"ことこと", file:"art/kotokoto.png" }
+    { id:"funifuni", name:"ふにふに",
+      idle:"art/funifuni-idle.png", run:"art/funifuni-run.png", swing:"art/funifuni-swing.png" },
+    { id:"kotokoto", name:"ことこと",
+      idle:"art/kotokoto-idle.png", run:"art/kotokoto-run.png", swing:"art/kotokoto-swing.png" }
   ];
   const CHAR_KEY = "tennis-game:character";
   let selectedChar = localStorage.getItem(CHAR_KEY) || CHARACTERS[0].id;
@@ -229,7 +210,7 @@
     CHARACTERS.forEach(function(c){
       const btn = document.createElement("button");
       btn.className = "charBtn" + (c.id === selectedChar ? " selected" : "");
-      btn.innerHTML = '<img src="' + c.file + '" alt="' + c.name + '">' +
+      btn.innerHTML = '<img src="' + c.idle + '" alt="' + c.name + '">' +
         '<span class="cname">' + c.name + '</span>';
       btn.addEventListener("click", function(){
         selectedChar = c.id;
@@ -240,13 +221,15 @@
     });
   }
 
-  function charFile(id){
-    const c = CHARACTERS.find(function(x){ return x.id === id; });
-    return c ? c.file : CHARACTERS[0].file;
+  function findChar(id){
+    return CHARACTERS.find(function(x){ return x.id === id; }) || CHARACTERS[0];
   }
-  function opponentFile(id){
-    const opp = CHARACTERS.find(function(x){ return x.id !== id; });
-    return opp ? opp.file : CHARACTERS[1].file;
+  function opponentOf(id){
+    return CHARACTERS.find(function(x){ return x.id !== id; }) || CHARACTERS[1];
+  }
+  /** キャラID + ポーズ名("idle"|"run"|"swing") から画像パスを引く */
+  function poseFile(charId, pose){
+    return findChar(charId)[pose] || findChar(charId).idle;
   }
 
   /* =========================================================
@@ -311,6 +294,7 @@
     const ARC_HEIGHT = 42;          // ボールの山なり演出(px)
     const RETURN_PAUSE = 160;
     const SMART_RETURN_CHANCE = 0.35; // 相手がプレイヤーから遠い側を狙う確率(かしこい返球)
+    const BOUNCE_MS = 180;          // hit/miss/whiffの見た目演出の長さ(swingポーズの表示時間も揃える)
 
     // "serve" | "ballToPlayer" | "ballToOpponent" | "pointOver" | "gameOver"
     let phase = "serve";
@@ -326,13 +310,47 @@
     let autoMissTimer = null;
     let opponentReactAt = 0;
 
+    // ---- 見た目(idle/run/swingポーズ + 左右反転)。ゲームロジックとは独立に
+    // 「今動いているか(pose用)」と「最後にどちらを向いていたか(反転用。動きが
+    // 止まってもidleで向きを保つ)」を分けて持つ。素材は左向きに描かれているため
+    // 向きが右のときだけ反転する ----
+    let playerMoving = false, playerFacing = -1;
+    let opponentMoving = false, opponentFacing = -1;
+    let playerSwingUntil = 0, opponentSwingUntil = 0;
+    const playerVisual = { pose:null, flip:null };
+    const opponentVisual = { pose:null, flip:null };
+
+    function triggerSwing(side){
+      const until = performance.now() + BOUNCE_MS;
+      if (side === "player") playerSwingUntil = until; else opponentSwingUntil = until;
+    }
+
+    function applyVisual(state, imgEl, charId, pose, flip){
+      if (state.pose !== pose) { imgEl.src = poseFile(charId, pose); state.pose = pose; }
+      if (state.flip !== flip) { imgEl.style.setProperty("--flip", String(flip)); state.flip = flip; }
+    }
+
+    function updateVisuals(now){
+      const e = el();
+      const pSwing = now < playerSwingUntil;
+      applyVisual(playerVisual, e.playerImg, selectedChar,
+        pSwing ? "swing" : (playerMoving ? "run" : "idle"),
+        playerFacing < 0 ? 1 : -1);
+
+      const oSwing = now < opponentSwingUntil;
+      applyVisual(opponentVisual, e.opponentImg, opponentOf(selectedChar).id,
+        oSwing ? "swing" : (opponentMoving ? "run" : "idle"),
+        opponentFacing < 0 ? 1 : -1);
+    }
+
     const score = { player:0, opponent:0 };
     let lastLabels = scoreLabels(0, 0);
     let lastSmartReturn = false;
 
     function el(){
       return { ball: $("ball"), shadow: $("ballShadow"), reach: $("reach"),
-        player: $("playerWrap"), opponent: $("opponentWrap"), flash: $("flash") };
+        player: $("playerWrap"), opponent: $("opponentWrap"), flash: $("flash"),
+        playerImg: $("playerImg"), opponentImg: $("opponentImg") };
     }
 
     function flash(kind){
@@ -346,7 +364,7 @@
       wrap.classList.remove("hit","miss","whiff");
       void wrap.offsetWidth;
       wrap.classList.add(kind);
-      setTimeout(function(){ wrap.classList.remove(kind); }, 180);
+      setTimeout(function(){ wrap.classList.remove(kind); }, BOUNCE_MS);
     }
 
     /** 自分側・相手側で共通の「届くか」判定 */
@@ -399,16 +417,20 @@
       if (keys.left) dir -= 1;
       if (keys.right) dir += 1;
       if (dir !== 0) player.x = clamp(player.x + dir * PLAYER_SPEED * dtMs, player.min, player.max);
+      playerMoving = dir !== 0;
+      if (dir !== 0) playerFacing = dir;
     }
 
     /* ---- 相手AI(ballToOpponent の間だけ、予測着地Xへ向けて動く) ---- */
     function updateOpponent(now, dtMs){
-      if (phase !== "ballToOpponent") return;
-      if (now < opponentReactAt) return;
+      if (phase !== "ballToOpponent" || now < opponentReactAt) { opponentMoving = false; return; }
       const dx = ball.targetX - opponent.x;
       const step = AI_SPEED * dtMs;
-      if (Math.abs(dx) <= step) opponent.x = ball.targetX;
-      else opponent.x += Math.sign(dx) * step;
+      if (Math.abs(dx) <= step) { opponent.x = ball.targetX; opponentMoving = false; return; }
+      const dir = Math.sign(dx);
+      opponent.x += dir * step;
+      opponentMoving = true;
+      opponentFacing = dir;
     }
 
     function launchToPlayer(){
@@ -442,6 +464,7 @@
       const reached = canReach(opponent.x, ball.targetX);
       if (!reached) { pointFor("player"); return; }
       bounce(el().opponent, "hit");
+      triggerSwing("opponent");
       lastSmartReturn = rand() < SMART_RETURN_CHANCE;
       const targetX = lastSmartReturn ? aimAwayFromPlayer(player.x) : aimFromContact(opponent.x, ball.targetX);
       setTimeout(function(){
@@ -470,8 +493,8 @@
       const inWindow = elapsed >= early && elapsed <= late;
       const inReach = canReach(player.x, ball.x);
 
-      if (!inReach) { bounce(el().player, "whiff"); miss(); return; }
-      if (!inWindow) { bounce(el().player, "whiff"); miss(); return; }
+      if (!inReach) { bounce(el().player, "whiff"); triggerSwing("player"); miss(); return; }
+      if (!inWindow) { bounce(el().player, "whiff"); triggerSwing("player"); miss(); return; }
       hit();
     }
 
@@ -479,6 +502,7 @@
       clearTimeout(autoMissTimer);
       flash("good");
       bounce(el().player, "hit");
+      triggerSwing("player");
       const targetX = aimFromContact(player.x, ball.x);
       duration = Math.max(MIN_DURATION, duration - DURATION_STEP);
       launchToOpponent(targetX);
@@ -528,8 +552,11 @@
       $("playerScore").textContent = lastLabels.forLabel;
       $("opponentScore").textContent = lastLabels.againstLabel;
       $("deuceNote").hidden = true;
-      $("playerImg").src = charFile(selectedChar);
-      $("opponentImg").src = opponentFile(selectedChar);
+      playerMoving = false; playerFacing = -1; playerSwingUntil = 0;
+      opponentMoving = false; opponentFacing = -1; opponentSwingUntil = 0;
+      playerVisual.pose = null; playerVisual.flip = null;
+      opponentVisual.pose = null; opponentVisual.flip = null;
+      updateVisuals(performance.now());
       el().player.classList.remove("hit","miss","whiff");
       el().opponent.classList.remove("hit","miss","whiff");
       $("reach").classList.remove("armed");
@@ -546,6 +573,7 @@
       updatePlayer(dt);
       updateOpponent(now, dt);
       renderCourt(now);
+      updateVisuals(now);
       rafId = requestAnimationFrame(loop);
     }
     function startLoop(){ lastTick = 0; rafId = requestAnimationFrame(loop); }
