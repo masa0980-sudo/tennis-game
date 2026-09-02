@@ -78,8 +78,23 @@
     border-radius:50%; background:rgba(0,0,0,.35); filter:blur(1px); z-index:3; }
   .ball{ position:absolute; width:22px; height:22px; margin-left:-11px; margin-top:-11px;
     border-radius:50%; background:radial-gradient(circle at 35% 30%, #fff, #ffd54a 55%, #f3a712 100%);
-    box-shadow:0 0 10px rgba(255,213,74,.7); z-index:4; }
+    box-shadow:0 0 10px rgba(255,213,74,.7); z-index:4; transition: box-shadow .08s; }
   .ball.hidden{ opacity:0; }
+  /* ボールが「今の打点(位置+タイミング)なら実際にヒットする」瞬間だけ強く光る。
+     判定ルールと完全に同じ式で光らせるので、見た目と成否が食い違わない */
+  .ball.ready{ box-shadow:0 0 4px 2px #fff, 0 0 22px 9px rgba(255,213,74,.95); }
+
+  /* 自分の「打てる範囲」を示すバー。プレイヤーの現在位置に追従する。
+     ボールが自分に向かっているあいだは薄く見えているだけ(=位置の目安)で、
+     実際にタップすればヒットする瞬間だけ明るく光って脈打つ(=判定と直結)。
+     以前の点線の輪は「ラリー中ずっと同じ見た目」で分かりにくかったための作り直し。 */
+  .hitZone{ position:absolute; bottom:12%; width:34%; max-width:170px; height:14px;
+    margin-left:-17%; border-radius:999px; z-index:1; pointer-events:none;
+    background:rgba(255,255,255,.12); opacity:0; transition:left .05s linear, opacity .15s, background .1s, box-shadow .1s; }
+  .hitZone.visible{ opacity:1; }
+  .hitZone.ready{ background:linear-gradient(90deg, rgba(56,189,248,.5), #7dd3fc, rgba(56,189,248,.5));
+    box-shadow:0 0 18px rgba(56,189,248,.85); animation:hitZonePulse .3s ease-in-out infinite alternate; }
+  @keyframes hitZonePulse{ from{ transform:scaleY(1); } to{ transform:scaleY(1.5); } }
 
   /* キャラの向き(--flip: 1=通常/-1=左右反転)は素材が左向きに描かれているため、
      右へ移動するときだけ反転する。ヒット/ミス演出のtransformはこの反転と
@@ -91,11 +106,11 @@
   .charWrap.miss img{ transform: scaleX(var(--flip,1)) scale(.92) rotate(8deg); filter:grayscale(.5); }
   .charWrap.whiff img{ transform: scaleX(var(--flip,1)) rotate(-14deg); }
 
-  .playerWrap{ bottom:2%; transform:translateX(-50%); }
+  .playerWrap{ bottom:0.5%; transform:translateX(-50%); }
   .playerWrap img{ width:92px; }
   .playerWrap.hit img{ transform: scaleX(var(--flip,1)) scale(1.18) rotate(-6deg); }
 
-  .opponentWrap{ top:2%; transform:translateX(-50%); }
+  .opponentWrap{ top:0.5%; transform:translateX(-50%); }
   .opponentWrap img{ width:78px; }
   .opponentWrap.hit img{ transform: scaleX(var(--flip,1)) scale(1.18) rotate(6deg); }
 
@@ -143,6 +158,7 @@
       </div>
       <div class="ballShadow" id="ballShadow"></div>
       <div class="ball" id="ball"></div>
+      <div class="hitZone" id="hitZone"></div>
       <div class="playerWrap charWrap" id="playerWrap">
         <img id="playerImg" alt="">
       </div>
@@ -229,14 +245,16 @@
 
   /* =========================================================
      2. Court — 座標系だけを持つ小さなモジュール(DOM非依存)
-     論理X座標は0〜100。見切れないよう、CSS上は15%〜85%の帯に写像する。
-     前後移動は無く(=奥行きは今回のスコープ外)、左右移動だけを扱う。
+     論理X座標は0〜100。CSS上はシングルスのサイドライン(背景に描いた10%〜90%)
+     いっぱいまで使う(以前は15%〜85%に絞っていて、コートの余白が広く
+     見えすぎていた)。前後移動は無く(=奥行きは今回のスコープ外)、
+     左右移動だけを扱う。
      ========================================================= */
   const Court = {
     X_MIN: 0, X_MAX: 100,
-    CSS_MIN: 15, CSS_MAX: 85,
-    PLAYER_Y: 88,     // 自分の打点(コート下端寄り、%)
-    OPPONENT_Y: 9,    // 相手の打点(コート上端寄り、%)
+    CSS_MIN: 10, CSS_MAX: 90,
+    PLAYER_Y: 93,     // 自分の打点(コート下端ぎりぎり、%)
+    OPPONENT_Y: 4,    // 相手の打点(コート上端ぎりぎり、%)
     toCssX: function(x){ return Court.CSS_MIN + (Court.CSS_MAX - Court.CSS_MIN) * (x / 100); },
   };
 
@@ -344,9 +362,19 @@
     let lastSmartReturn = false;
 
     function el(){
-      return { ball: $("ball"), shadow: $("ballShadow"),
+      return { ball: $("ball"), shadow: $("ballShadow"), hitZone: $("hitZone"),
         player: $("playerWrap"), opponent: $("opponentWrap"), flash: $("flash"),
         playerImg: $("playerImg"), opponentImg: $("opponentImg") };
+    }
+
+    /** 「今タップしたら実際にヒットする」かどうか。onAction()の成功条件と
+        完全に同じ式にする(見た目の判定バー/ボールの光り方と、実際の成否が
+        食い違わないようにするため)。 */
+    function isHittableNow(now){
+      if (phase !== "ballToPlayer") return false;
+      const elapsed = now - ball.flightStart;
+      const inWindow = elapsed >= (duration - WINDOW_MS) && elapsed <= (duration + GRACE_MS);
+      return inWindow && canReach(player.x, ball.x);
     }
 
     function flash(kind){
@@ -406,6 +434,14 @@
         e.shadow.style.opacity = String(clamp(1 - hover / ARC_HEIGHT, .15, 1));
         e.shadow.style.transform = "scale(" + clamp(1 - hover / (ARC_HEIGHT * 1.6), .4, 1).toFixed(2) + ")";
       }
+
+      // 打てる範囲バー: ボールが自分に向かっているあいだだけ位置を追従表示し、
+      // 実際にタップすればヒットする瞬間だけ強く光らせる(判定式と共通のisHittableNow)。
+      e.hitZone.style.left = Court.toCssX(player.x) + "%";
+      const ready = isHittableNow(now);
+      e.hitZone.classList.toggle("visible", phase === "ballToPlayer");
+      e.hitZone.classList.toggle("ready", ready);
+      e.ball.classList.toggle("ready", ready);
     }
 
     /* ---- プレイヤー移動(常時。ラリー中でも移動できる) ---- */
@@ -555,7 +591,8 @@
       updateVisuals(performance.now());
       el().player.classList.remove("hit","miss","whiff");
       el().opponent.classList.remove("hit","miss","whiff");
-      $("ball").classList.remove("hidden");
+      $("ball").classList.remove("hidden","ready");
+      $("hitZone").classList.remove("visible","ready");
       show("play");
       startLoop();
       setTimeout(launchToPlayer, 500);
