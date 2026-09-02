@@ -54,7 +54,10 @@
   /* テニスコート風の背景。芝(グリーン)の地に、シングルスのサイドライン・
      サービスラインを白線で描く。実寸どおりの比率ではなく、あくまで
      「テニスコートらしく見える」ことを優先した簡略デザイン */
-  .court{ position:relative; width:100%; max-width:460px; flex:1; margin:8px 0;
+  /* 縦長のテニスコートに固定する。高さ(flex:1で残り空間いっぱい)から
+     幅をaspect-ratioで導出する側に倒す(幅を先に決めて高さを残り空間任せに
+     すると、横長で低い画面のときにコートまで横長になってしまっていたため)。 */
+  .court{ position:relative; flex:1; width:auto; max-width:460px; aspect-ratio:2/3; margin:8px auto;
     background:
       linear-gradient(transparent 0 30%, rgba(255,255,255,.4) 30% calc(30% + 2px), transparent calc(30% + 2px) 100%),
       linear-gradient(transparent 0 70%, rgba(255,255,255,.4) 70% calc(70% + 2px), transparent calc(70% + 2px) 100%),
@@ -77,13 +80,6 @@
     border-radius:50%; background:radial-gradient(circle at 35% 30%, #fff, #ffd54a 55%, #f3a712 100%);
     box-shadow:0 0 10px rgba(255,213,74,.7); z-index:4; }
   .ball.hidden{ opacity:0; }
-
-  /* 自分の「届く範囲」。プレイヤーの現在位置に追従し、ボールが自分の番の
-     ときだけ光る(=そろそろ打てる、が視覚的にわかる) */
-  .reach{ position:absolute; bottom:16%; width:30%; max-width:150px; height:26px;
-    margin-left:-15%; border:2px dashed rgba(255,255,255,.3); border-radius:999px; z-index:1;
-    transition: left .05s linear; }
-  .reach.armed{ border-color:var(--accent); box-shadow:0 0 16px rgba(56,189,248,.5); }
 
   /* キャラの向き(--flip: 1=通常/-1=左右反転)は素材が左向きに描かれているため、
      右へ移動するときだけ反転する。ヒット/ミス演出のtransformはこの反転と
@@ -145,7 +141,6 @@
       <div class="opponentWrap charWrap" id="opponentWrap">
         <img id="opponentImg" alt="">
       </div>
-      <div class="reach" id="reach"></div>
       <div class="ballShadow" id="ballShadow"></div>
       <div class="ball" id="ball"></div>
       <div class="playerWrap charWrap" id="playerWrap">
@@ -153,7 +148,7 @@
       </div>
       <div class="flash" id="flash"></div>
     </div>
-    <p class="tapHint">← → / A D で移動・タップで打つ</p>
+    <p class="tapHint">← → / A D で移動・タップで打つ（打つ瞬間に押した方向へ狙いを変えられる）</p>
     <div class="moveButtons" id="moveButtons">
       <button class="moveBtn" id="btnLeft">◀</button>
       <button class="moveBtn" id="btnRight">▶</button>
@@ -282,18 +277,19 @@
      5. ゲーム本体
      ========================================================= */
   const TennisGame = (function(){
-    const REACH_RADIUS = 17;        // 届く範囲(論理単位。0〜100スケール)
+    const REACH_RADIUS = 22;        // 届く範囲(論理単位。0〜100スケール)
     const PLAYER_SPEED = 0.085;     // 論理単位/ms
     const AI_SPEED = 0.072;         // 相手の上限速度(自分よりわずかに遅い=勝ち筋がある)
     const AI_REACTION_MS = 140;     // 相手が動き出すまでの反応遅延
     const START_DURATION = 1200;    // 最初の到達時間(ms)
     const MIN_DURATION = 680;
     const DURATION_STEP = 45;
-    const WINDOW_MS = 220;          // 到達時刻より前、これだけ早くから成功にする
-    const GRACE_MS = 120;           // 到達時刻より後、これだけ遅くても成功にする
+    const WINDOW_MS = 260;          // 到達時刻より前、これだけ早くから成功にする
+    const GRACE_MS = 150;           // 到達時刻より後、これだけ遅くても成功にする
     const ARC_HEIGHT = 42;          // ボールの山なり演出(px)
     const RETURN_PAUSE = 160;
     const SMART_RETURN_CHANCE = 0.35; // 相手がプレイヤーから遠い側を狙う確率(かしこい返球)
+    const AIM_KEY_BIAS = 16;        // 打つ瞬間に左右キーを押していると、その方向へ狙いをずらす強さ
     const BOUNCE_MS = 180;          // hit/miss/whiffの見た目演出の長さ(swingポーズの表示時間も揃える)
 
     // "serve" | "ballToPlayer" | "ballToOpponent" | "pointOver" | "gameOver"
@@ -348,7 +344,7 @@
     let lastSmartReturn = false;
 
     function el(){
-      return { ball: $("ball"), shadow: $("ballShadow"), reach: $("reach"),
+      return { ball: $("ball"), shadow: $("ballShadow"),
         player: $("playerWrap"), opponent: $("opponentWrap"), flash: $("flash"),
         playerImg: $("playerImg"), opponentImg: $("opponentImg") };
     }
@@ -374,10 +370,12 @@
 
     /** 打った瞬間の接触位置のズレから、打球の狙いどころを決める。
         ボールの左に立って打てば相手コートの右へ、右に立てば左へ飛ぶ
-        (実際のテニスで体の入り方が打球方向を決めるのに近い)。 */
-    function aimFromContact(receiverX, ballX){
+        (実際のテニスで体の入り方が打球方向を決めるのに近い)。
+        aimDir(-1/0/+1)は打つ瞬間に押している左右キーで、押した方向に
+        さらに狙いを寄せる(=プレイヤーが意図して打ち分けられるようにする)。 */
+    function aimFromContact(receiverX, ballX, aimDir){
       const offset = receiverX - ballX;           // 概ね -REACH〜+REACH
-      const target = 50 - offset * 2.6;
+      const target = 50 - offset * 2.6 + (aimDir || 0) * AIM_KEY_BIAS;
       return clamp(target, 6, 94);
     }
 
@@ -391,7 +389,6 @@
       const e = el();
       e.player.style.left = Court.toCssX(player.x) + "%";
       e.opponent.style.left = Court.toCssX(opponent.x) + "%";
-      e.reach.style.left = Court.toCssX(player.x) + "%";
 
       if (phase === "ballToPlayer" || phase === "ballToOpponent") {
         const t = clamp((now - ball.flightStart) / ball.flightDuration, 0, 1);
@@ -441,7 +438,6 @@
       ball.flightStart = performance.now();
       ball.flightDuration = duration;
       $("ball").classList.remove("hidden");
-      $("reach").classList.add("armed");
 
       clearTimeout(autoMissTimer);
       autoMissTimer = setTimeout(function(){
@@ -457,7 +453,6 @@
       ball.flightStart = performance.now();
       ball.flightDuration = duration;
       opponentReactAt = ball.flightStart + AI_REACTION_MS;
-      $("reach").classList.remove("armed");
     }
 
     function opponentArrives(){
@@ -476,7 +471,6 @@
         ball.flightStart = performance.now();
         ball.flightDuration = duration;
         $("ball").classList.remove("hidden");
-        $("reach").classList.add("armed");
         clearTimeout(autoMissTimer);
         autoMissTimer = setTimeout(function(){
           if (phase === "ballToPlayer") miss();
@@ -503,7 +497,10 @@
       flash("good");
       bounce(el().player, "hit");
       triggerSwing("player");
-      const targetX = aimFromContact(player.x, ball.x);
+      let aimDir = 0;
+      if (keys.left) aimDir -= 1;
+      if (keys.right) aimDir += 1;
+      const targetX = aimFromContact(player.x, ball.x, aimDir);
       duration = Math.max(MIN_DURATION, duration - DURATION_STEP);
       launchToOpponent(targetX);
       setTimeout(function(){
@@ -515,7 +512,6 @@
       phase = "pointOver";
       clearTimeout(autoMissTimer);
       flash("bad");
-      $("reach").classList.remove("armed");
       pointFor("opponent");
     }
 
@@ -559,7 +555,6 @@
       updateVisuals(performance.now());
       el().player.classList.remove("hit","miss","whiff");
       el().opponent.classList.remove("hit","miss","whiff");
-      $("reach").classList.remove("armed");
       $("ball").classList.remove("hidden");
       show("play");
       startLoop();
