@@ -112,9 +112,13 @@
       linear-gradient(90deg,
         transparent 0 10%, rgba(255,255,255,.55) 10% calc(10% + 2px), transparent calc(10% + 2px) 90%,
         rgba(255,255,255,.55) 90% calc(90% + 2px), transparent calc(90% + 2px) 100%),
-      linear-gradient(180deg, #1f6b4f, #1c6349 40%, #14432f);
+      linear-gradient(180deg, var(--grassA, #1f6b4f), var(--grassB, #1c6349) 40%, var(--grassC, #14432f));
     border:3px solid rgba(255,255,255,.6); border-radius:14px; overflow:hidden; cursor:pointer;
     user-select:none; -webkit-user-select:none; }
+  /* アンロックで選べるコートの色(背景のグラデーションだけを差し替える) */
+  .court[data-theme="hard"]{ --grassA:#2563a8; --grassB:#1f5799; --grassC:#123a6b; }
+  .court[data-theme="clay"]{ --grassA:#b4643a; --grassB:#a55631; --grassC:#6f3a20; }
+  .court[data-theme="night"]{ --grassA:#243b6b; --grassB:#1b2d55; --grassC:#101b36; }
   .netLine{ position:absolute; left:6%; right:6%; top:48%; height:6px; margin-top:-3px;
     background:
       repeating-linear-gradient(90deg, rgba(10,20,15,.9) 0 6px, transparent 6px 7px),
@@ -130,6 +134,50 @@
   .ball.hidden{ opacity:0; }
   /* 「今タップすれば当たる」瞬間だけ強く光る(判定式と同じ条件で点灯させる) */
   .ball.ready{ box-shadow:0 0 4px 2px #fff, 0 0 22px 9px rgba(255,213,74,.95); }
+  /* アンロックで選べるボールの色 */
+  .ball[data-skin="gold"]{ background:radial-gradient(circle at 35% 30%, #fff, #ffe9a3 45%, #d4a017 100%);
+    box-shadow:0 0 12px rgba(255,215,0,.85); }
+  .ball[data-skin="neon"]{ background:radial-gradient(circle at 35% 30%, #fff, #7dffd4 45%, #12b886 100%);
+    box-shadow:0 0 14px rgba(45,255,196,.9); }
+
+  /* ヒット時の粒(プールから使い回す) */
+  .spark{ position:absolute; width:7px; height:7px; margin:-3px 0 0 -3px; border-radius:50%;
+    background:#fff; z-index:6; pointer-events:none; opacity:0; }
+  .spark.fly{ animation: sparkFly .42s ease-out forwards; }
+  @keyframes sparkFly{
+    from{ opacity:1; transform:translate(0,0) scale(1); }
+    to{ opacity:0; transform:translate(var(--dx), var(--dy)) scale(.3); }
+  }
+
+  /* 実績解除のトースト */
+  #toasts{ position:fixed; top:12px; left:50%; transform:translateX(-50%); z-index:50;
+    display:flex; flex-direction:column; gap:8px; align-items:center; pointer-events:none; }
+  .toast{ display:flex; align-items:center; gap:8px; padding:9px 16px; border-radius:999px;
+    background:rgba(15,23,42,.95); border:1px solid rgba(253,230,138,.55);
+    box-shadow:0 6px 20px rgba(0,0,0,.5); animation:toastIn .3s ease-out; }
+  .toast b{ font-size:10px; letter-spacing:.12em; color:#fde68a; }
+  .toast span{ font-size:13px; font-weight:800; }
+  .toast.out{ animation:toastOut .35s ease-in forwards; }
+  @keyframes toastIn{ from{ opacity:0; transform:translateY(-12px); } to{ opacity:1; transform:none; } }
+  @keyframes toastOut{ to{ opacity:0; transform:translateY(-12px); } }
+
+  /* ===== 実績画面 ===== */
+  .achList{ display:flex; flex-direction:column; gap:6px; width:100%; max-width:360px;
+    max-height:44vh; overflow-y:auto; }
+  .achRow{ display:flex; align-items:center; gap:10px; padding:8px 12px; border-radius:12px;
+    background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08); text-align:left; }
+  .achRow .mark{ flex:none; width:22px; text-align:center; font-size:14px; }
+  .achRow .name{ font-weight:800; font-size:13px; }
+  .achRow .desc{ font-size:11px; color:#9aa4c4; }
+  .achRow.locked{ opacity:.45; }
+  .achRow.got{ border-color:rgba(253,230,138,.45); }
+  .achRow.got .mark{ color:#fde68a; }
+  .equipRow{ display:flex; flex-wrap:wrap; gap:6px; justify-content:center; width:100%; max-width:360px; }
+  .chip{ padding:6px 12px; border-radius:999px; font-size:12px; cursor:pointer; color:#fff;
+    background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.16); }
+  .chip.on{ border-color:var(--accent); background:rgba(56,189,248,.18); font-weight:800; }
+  .chip[disabled]{ opacity:.4; cursor:default; }
+  .equipTitle{ font-size:11px; letter-spacing:.1em; color:#9aa4c4; margin:0; }
 
   /* 自分の「打てる範囲」バー。ボールが自分に向かう間だけ薄く見え、
      実際にタップすればヒットする瞬間だけ明るく光って脈打つ */
@@ -244,7 +292,20 @@
     <p class="sub">タイミングよくタップ。スワイプでコースを打ち分けよう。</p>
     <div class="charRow" id="charRow"></div>
     <button class="bigBtn" id="startBtn">はじめる</button>
+    <button class="ghostBtn" id="achBtn">実績 0/12</button>
     <p class="tapHint">タップ / スペースで打つ　・　◀ ▲ ▶ スワイプ / 矢印キーでコース</p>
+  </section>
+
+  <!-- ================= 実績とアンロック ================= -->
+  <section id="achievements" class="screen">
+    <span class="sub">ACHIEVEMENTS</span>
+    <h1 class="h2" id="achTitle">実績</h1>
+    <div class="achList" id="achList"></div>
+    <p class="equipTitle">コート</p>
+    <div class="equipRow" id="courtChips"></div>
+    <p class="equipTitle">ボール</p>
+    <div class="equipRow" id="ballChips"></div>
+    <button class="ghostBtn" id="achBack">タイトルへ</button>
   </section>
 
   <!-- ================= モード選択 ================= -->
@@ -329,6 +390,7 @@
     <div class="resultBtns" id="resultBtns"></div>
   </section>
 
+  <div id="toasts"></div>
 </div>
 
 <script>
@@ -339,7 +401,7 @@
      0. 小道具
      ========================================================= */
   function $(id){ return document.getElementById(id); }
-  const SCREENS = ["title","modes","ladder","play","result"];
+  const SCREENS = ["title","modes","ladder","play","result","achievements"];
   function show(id){
     SCREENS.forEach(function(s){
       $(s).classList.toggle("active", s === id);
@@ -371,6 +433,11 @@
       if (c && c.state === "suspended") c.resume();
       return c;
     }
+    function unlockJingle(){
+      const t = nowT();
+      tone(t,        { type:"sine", freq:1568, dur:0.14, peak:0.22 });
+      tone(t + 0.11, { type:"sine", freq:2093, dur:0.2,  peak:0.2 });
+    }
     function tone(at, opt){
       const c = ensure();
       if (!c) return;
@@ -388,7 +455,8 @@
       osc.start(at);
       osc.stop(at + dur + 0.03);
     }
-    function now(){ const c = ensure(); return c ? c.currentTime : 0; }
+    function nowT(){ const c = ensure(); return c ? c.currentTime : 0; }
+    const now = nowT;
 
     function hit(tier){
       const t = now();
@@ -429,7 +497,7 @@
     }
     function state(){ return ctx ? ctx.state : "none"; }
 
-    return { unlock, hit, whiff, bounce, smash, charge, pointWin, pointLose, win, lose, state };
+    return { unlock, unlockJingle, hit, whiff, bounce, smash, charge, pointWin, pointLose, win, lose, state };
   })();
 
   /* =========================================================
@@ -631,6 +699,121 @@
       });
     }
     return { show, renderList };
+  })();
+
+  /* =========================================================
+     3c. Progress — 実績とアンロック(コート/ラケットの色)。
+         実績はイベント駆動で、Progress.on(event, ctx) が条件を満たしたものを解除する。
+     ========================================================= */
+  const Progress = (function(){
+    const KEY = "tennis-game:progress";
+    const ACHIEVEMENTS = [
+      { id:"first_win",   name:"はじめての勝利",   desc:"トーナメントで1勝する" },
+      { id:"love_game",   name:"ラブゲーム",       desc:"4-0で勝つ" },
+      { id:"deuce_win",   name:"デュースを制す",   desc:"デュースになった試合に勝つ" },
+      { id:"no_miss_game",name:"ノーミス",         desc:"1度もミスせずに勝つ" },
+      { id:"perfect_10",  name:"パーフェクト×10", desc:"1試合でPERFECTを10回出す" },
+      { id:"smash_point", name:"必殺スマッシュ",   desc:"スマッシュで得点する" },
+      { id:"lob_point",   name:"頭上を越えて",     desc:"ロブで得点する" },
+      { id:"beat_rusher", name:"ネット封じ",       desc:"ネットラッシャーに勝つ" },
+      { id:"champion",    name:"チャンピオン",     desc:"トーナメントで優勝する" },
+      { id:"rally_30",    name:"ラリー30",         desc:"ラリーアタックで30回続ける" },
+      { id:"rally_100",   name:"ラリー100",        desc:"ラリーアタックで100回続ける" },
+      { id:"combo_20",    name:"コンボ20",         desc:"ラリーアタックで20コンボ" },
+    ];
+    // 解除でアンロックされるもの(装備はタイトル画面で選ぶ)
+    const COURTS = [
+      { id:"green", name:"グラス", need:null },
+      { id:"hard",  name:"ハード", need:"first_win" },
+      { id:"clay",  name:"クレー", need:"rally_30" },
+      { id:"night", name:"ナイター", need:"champion" },
+    ];
+    const BALLS = [
+      { id:"classic", name:"イエロー", need:null },
+      { id:"gold",    name:"ゴールド", need:"perfect_10" },
+      { id:"neon",    name:"ネオン",   need:"combo_20" },
+    ];
+
+    function load(){
+      let r = null;
+      try { r = JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) {}
+      if (!r || r.v !== 1) r = { v:1, ach:{}, equipped:{ court:"green", ball:"classic" }, stats:{} };
+      if (!r.ach) r.ach = {};
+      if (!r.equipped) r.equipped = { court:"green", ball:"classic" };
+      return r;
+    }
+    function save(r){ try { localStorage.setItem(KEY, JSON.stringify(r)); } catch (e) {} }
+    function reset(){ try { localStorage.removeItem(KEY); } catch (e) {} }
+    function has(id){ return !!load().ach[id]; }
+    function unlocked(item){ return !item.need || has(item.need); }
+
+    let queue = [];
+    function grant(id){
+      const r = load();
+      if (r.ach[id]) return false;
+      r.ach[id] = new Date().toISOString();
+      save(r);
+      queue.push(ACHIEVEMENTS.find(function(a){ return a.id === id; }));
+      flushToasts();
+      return true;
+    }
+    // 解除トーストを順番に出す(同時解除はキューで順送り)
+    let toasting = false;
+    function flushToasts(){
+      if (toasting || !queue.length) return;
+      toasting = true;
+      const a = queue.shift();
+      const el = document.createElement("div");
+      el.className = "toast";
+      el.innerHTML = '<b>実績解除</b><span>' + a.name + '</span>';
+      $("toasts").appendChild(el);
+      Sfx.unlockJingle();
+      setTimeout(function(){
+        el.classList.add("out");
+        setTimeout(function(){
+          if (el.parentNode) el.parentNode.removeChild(el);
+          toasting = false;
+          flushToasts();
+        }, 350);
+      }, 2400);
+    }
+
+    /** 試合/ランの結果から実績を判定する。res は TennisGame の finish() が渡すもの */
+    function onResult(res){
+      if (res.mode === "rally") {
+        if (res.hits >= 30) grant("rally_30");
+        if (res.hits >= 100) grant("rally_100");
+        if (res.maxCombo >= 20) grant("combo_20");
+      } else if (res.win) {
+        grant("first_win");
+        if (res.pointsOpponent === 0) grant("love_game");
+        if (res.deuceSeen) grant("deuce_win");
+        if (res.playerMisses === 0) grant("no_miss_game");
+        if (res.opponentId === "rusher") grant("beat_rusher");
+        if (res.opponentId === "champion") grant("champion");
+      }
+      if (res.perfects >= 10) grant("perfect_10");
+      if (res.smashPoints > 0) grant("smash_point");
+      if (res.lobPoints > 0) grant("lob_point");
+    }
+    function equip(kind, id){
+      const r = load();
+      r.equipped[kind] = id;
+      save(r);
+      applyEquipped();
+    }
+    /** 装備中のコート/ボールの色をCSSに反映する(見た目だけ) */
+    function applyEquipped(){
+      const r = load();
+      $("court").dataset.theme = r.equipped.court || "green";
+      $("ball").dataset.skin = r.equipped.ball || "classic";
+    }
+    function countText(){
+      const r = load();
+      return Object.keys(r.ach).length + "/" + ACHIEVEMENTS.length;
+    }
+    return { ACHIEVEMENTS, COURTS, BALLS, load, reset, has, unlocked, grant, onResult,
+      equip, applyEquipped, countText };
   })();
 
   /* =========================================================
@@ -849,6 +1032,33 @@
       c.classList.add("shake");
       setTimeout(function(){ c.classList.remove("shake"); }, 300);
     }
+    // 粒はプールから使い回す(毎回DOMを作ると打つたびにGCが走る)
+    const pool = [];
+    const COLORS = { perfect:"#fff7c2", good:"#7dd3fc", ok:"#fde68a", smash:"#fda4af" };
+    function burst(cssX, cssY, kind, n){
+      const court = $("court");
+      const color = COLORS[kind] || "#fff";
+      n = n || (kind === "perfect" || kind === "smash" ? 10 : 6);
+      for (let i = 0; i < n; i++) {
+        const el = pool.pop() || document.createElement("div");
+        el.className = "spark";
+        el.style.background = color;
+        el.style.left = cssX + "%";
+        el.style.bottom = cssY + "%";
+        const ang = (Math.PI * 2 * i) / n + Math.random() * 0.5;
+        const dist = 26 + Math.random() * 26;
+        el.style.setProperty("--dx", (Math.cos(ang) * dist).toFixed(1) + "px");
+        el.style.setProperty("--dy", (Math.sin(ang) * dist).toFixed(1) + "px");
+        court.appendChild(el);
+        void el.offsetWidth;
+        el.classList.add("fly");
+        setTimeout(function(){
+          if (el.parentNode) el.parentNode.removeChild(el);
+          el.className = "spark";
+          if (pool.length < 40) pool.push(el);
+        }, 460);
+      }
+    }
     function litDir(dir){
       const el = document.querySelector('.hintDir[data-dir="' + dir + '"]');
       if (!el) return;
@@ -869,7 +1079,7 @@
       wrap.classList.add(kind);
       setTimeout(function(){ wrap.classList.remove(kind); }, 180);
     }
-    return { judgePop, litDir, flash, bounce, shake };
+    return { judgePop, litDir, flash, bounce, shake, burst };
   })();
 
   /* =========================================================
@@ -1084,6 +1294,7 @@
         return;
       }
       Fx.bounce(el().opponent, "hit");
+      Fx.burst(Court.toCssX(opponent.x), 100 - opponentY(), "good", 5);
       opponentSwingUntil = performance.now() + SWING_MS;
       opponentHits += 1;
       Sfx.bounce();
@@ -1181,6 +1392,7 @@
       Fx.flash("good");
       Fx.bounce(el().player, "hit");
       Fx.judgePop(smash ? "smash" : (tier === "ok" ? (delta < 0 ? "early" : "late") : tier), cssX);
+      Fx.burst(cssX, 100 - Court.PLAYER_Y, smash ? "smash" : tier);
       if (smash) { Sfx.smash(); Fx.shake(); } else Sfx.hit(tier);
       hitstopTimer = setTimeout(fire, HITSTOP_MS);
       return tier;
@@ -1277,12 +1489,14 @@
       if (isRally()) Sfx.lose(); else if (win) Sfx.win(); else Sfx.lose();
       show("result");
       stopLoop();
+      Progress.applyEquipped();
       const result = { mode: meta.mode, win: win, opponentId: opp.id,
         pointsPlayer: score.player, pointsOpponent: score.opponent,
         longestRally: rally.longest, perfects: rally.perfects, deuceSeen: stats.deuceSeen,
         playerMisses: stats.playerMisses, smashPoints: stats.smashPoints, lobPoints: stats.lobPoints, outs: stats.outs,
         hits: rallyRun.hits, score: rallyRun.score, maxCombo: rallyRun.maxCombo };
       if (typeof onEnd === "function") onEnd(result);
+      Progress.onResult(result);   // 実績判定は結果画面を出したあと(トーストが乗る)
     }
 
     function begin(opts){
@@ -1297,6 +1511,10 @@
       exchanges = 0; opponentHits = 0; gauge = 0; paintGauge();
       stats.deuceSeen = false; stats.playerMisses = 0; stats.smashPoints = 0; stats.lobPoints = 0; stats.outs = 0;
       rallyRun.hits = 0; rallyRun.score = 0; rallyRun.combo = 0; rallyRun.maxCombo = 0;
+      // 前の試合の最後の球(アウトなら場外)が残ったままにならないよう、相手の足元に戻す
+      ball.x = 50; ball.y = Court.OPPONENT_Y; ball.fromX = 50; ball.fromY = Court.OPPONENT_Y;
+      ball.targetX = 50; ball.targetY = Court.PLAYER_Y; ball.arc = 42; ball.smash = false;
+      ball.flightStart = 0; ball.flightDuration = opp.startDuration;
       applyTell(null); setNet(false);
       $("vsName").textContent = isRally() ? "ラリーアタック" : ("vs " + opp.name);
       $("playerLabel").textContent = isRally() ? "SCORE" : "あなた";
@@ -1317,8 +1535,14 @@
       e.player.classList.remove("hit","miss","whiff");
       e.opponent.classList.remove("hit","miss","whiff");
       updateVisuals(performance.now());
+      e.ball.style.left = Court.toCssX(ball.x) + "%";
+      e.ball.style.top = ball.y + "%";
+      e.ball.style.transform = "";
+      e.shadow.style.left = Court.toCssX(ball.x) + "%";
+      e.shadow.style.top = ball.y + "%";
       $("ball").classList.remove("hidden");
       show("play");
+      Progress.applyEquipped();
       startLoop();
       setTimeout(function(){ if (phase === "serve") serve(); }, 600);
     }
@@ -1567,15 +1791,55 @@
   })();
 
   /* =========================================================
-     12. 画面の行き来
+     12. 実績画面の描画
+     ========================================================= */
+  function paintAchievements(){
+    $("achTitle").textContent = "実績 " + Progress.countText();
+    const list = $("achList");
+    list.innerHTML = "";
+    Progress.ACHIEVEMENTS.forEach(function(a){
+      const got = Progress.has(a.id);
+      const row = document.createElement("div");
+      row.className = "achRow " + (got ? "got" : "locked");
+      row.dataset.ach = a.id;
+      row.innerHTML = '<span class="mark">' + (got ? "★" : "・") + '</span>' +
+        '<span><span class="name">' + a.name + '</span><br><span class="desc">' + a.desc + '</span></span>';
+      list.appendChild(row);
+    });
+    paintChips("courtChips", Progress.COURTS, "court");
+    paintChips("ballChips", Progress.BALLS, "ball");
+  }
+  function paintChips(boxId, items, kind){
+    const box = $(boxId);
+    const equipped = Progress.load().equipped[kind];
+    box.innerHTML = "";
+    items.forEach(function(item){
+      const ok = Progress.unlocked(item);
+      const b = document.createElement("button");
+      b.className = "chip" + (equipped === item.id ? " on" : "");
+      b.dataset.id = item.id;
+      b.textContent = ok ? item.name : (item.name + " 🔒");
+      if (!ok) b.disabled = true;
+      else b.addEventListener("click", function(){ Progress.equip(kind, item.id); paintAchievements(); });
+      box.appendChild(b);
+    });
+  }
+  function paintAchButton(){ $("achBtn").textContent = "実績 " + Progress.countText(); }
+
+  /* =========================================================
+     13. 画面の行き来
      ========================================================= */
   $("startBtn").addEventListener("click", function(){ Sfx.unlock(); Modes.paintModes(); show("modes"); });
+  $("achBtn").addEventListener("click", function(){ paintAchievements(); show("achievements"); });
+  $("achBack").addEventListener("click", function(){ paintAchButton(); show("title"); });
   $("modeTournament").addEventListener("click", function(){ Modes.paintLadder(); show("ladder"); });
   $("modeRally").addEventListener("click", function(){ Modes.Rally.start(); });
-  $("modesBack").addEventListener("click", function(){ show("title"); });
+  $("modesBack").addEventListener("click", function(){ paintAchButton(); show("title"); });
   $("ladderBack").addEventListener("click", function(){ Modes.paintModes(); show("modes"); });
 
   paintCharRow();
+  paintAchButton();
+  Progress.applyEquipped();
   show("title");
 
   // Playwright検証用
@@ -1590,6 +1854,8 @@
     tournament: { load: Modes.loadTournament, reset: Modes.resetTournament },
     scores: { get: function(){ return Scores.get(Modes.rallyGameId); },
       reset: function(){ Scores.reset(Modes.rallyGameId); } },
+    progress: { load: Progress.load, reset: Progress.reset, grant: Progress.grant,
+      equip: Progress.equip, repaint: function(){ paintAchievements(); paintAchButton(); } },
     rallyPoints: rallyPoints, rampFor: rampFor,
     opponents: OPPONENTS,
     setRng: setRng, scoreLabels: scoreLabels, sfx: Sfx,

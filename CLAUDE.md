@@ -52,6 +52,10 @@ glue at the bottom).
   `RankUI` are ported from `Rhythm_game/index.html`; Rally Attack submits under gameId `tennis`,
   capped at 100000 to match the Firestore rules. A sandbox can't reach `firestore.googleapis.com`,
   so a stuck "読み込み中…" in local tests is the environment, not a bug.
+- **`Progress`** holds achievements and unlocks in `tennis-game:progress`. `Progress.onResult(res)`
+  runs once per finished game/run — add new achievements to the `ACHIEVEMENTS` table and a check
+  there, not scattered through the game loop. Unlocks are cosmetic only (court gradient via
+  `.court[data-theme]`, ball via `.ball[data-skin]`) and are applied by `applyEquipped()`.
 - **Smash gauge**: perfect/good hits fill `gauge` (34 / 12), a lost point drains 20, and at 100 the
   next perfect/good automatically becomes a smash (no extra input — a down-swipe would fight the
   browser's pull-to-refresh). Lobs never consume the gauge (`keepSmash`).
@@ -84,11 +88,12 @@ glue at the bottom).
   Higher-resolution originals exist only on masa's local machine — ask before assuming they're
   available anywhere else.
 
-## Scope / roadmap
+## Scope
 
-The game is being rebuilt in phases (see the commit history): 1) one-thumb controls + shot tiers,
-2) a ladder of opponents with distinct personalities, a smash gauge and a tournament mode,
-3) an endless "rally attack" score mode with the shared Firestore TOP10 (same mechanism as
-Rhythm_game, gameId `tennis`), 4) achievements/unlocks and presentation (particles, shake,
-slow-mo, court themes). Sporty 4-pose character art (`art/<char>-<pose>.png`) has been requested
-from masa's local image-generation session; until it lands, poses are CSS-only (`data-pose`).
+The rebuild is complete: one-thumb controls with shot tiers, a five-opponent tournament ladder with
+readable tells, a smash gauge, an endless Rally Attack with the shared Firestore TOP10, and
+achievements/unlocks with hit particles, screen shake and judgment popups. Character art is the
+sporty `art/<char>-{idle,run,swing}.png` set (fal.ai, generated in masa's local session, downscaled
+to 320px here); `art/funifuni.png` / `kotokoto.png` remain as the `poseFile()` fallback.
+
+Deliberately still out: sets/matches (a game is a single game), depth/forward movement, BGM.
