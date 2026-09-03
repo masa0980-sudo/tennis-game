@@ -203,6 +203,36 @@
   #result .stats{ font-size:12px; color:#9aa4c4; margin:0; }
   #result .stats b{ color:#fff; }
   #result .resultSub{ margin:0; font-size:13px; color:#9aa4c4; }
+  #result[data-mode="rally"] .matchOnly{ display:none; }
+  #result[data-mode="tournament"] .rallyOnly{ display:none; }
+  .bigScore{ font-size:44px; font-weight:900; margin:0; font-variant-numeric:tabular-nums;
+    background:linear-gradient(135deg,#fde68a,#fb923c); -webkit-background-clip:text;
+    background-clip:text; color:transparent; }
+  .bestLine{ font-size:12px; color:#fde68a; margin:0; min-height:1em; }
+
+  /* ===== みんなのランキング(Rhythm_game から移植) ===== */
+  .rankBox{ width:100%; max-width:340px; padding:12px 14px; border-radius:14px;
+    background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); }
+  .rankTitle{ font-size:12px; letter-spacing:.1em; color:#9aa4c4; margin-bottom:6px; }
+  #rankList{ list-style:none; margin:0; padding:0; font-size:13px; line-height:1.9;
+    max-height:190px; overflow-y:auto; }
+  #rankList li{ display:flex; align-items:center; gap:8px; padding:2px 0; }
+  #rankList .rankNo{ width:1.6em; flex:none; opacity:.6; font-weight:800; text-align:right; }
+  #rankList .rankInit{ flex:1; font-weight:800; letter-spacing:.08em; color:var(--accent2);
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:left; }
+  #rankList .rankScore{ flex:none; font-variant-numeric:tabular-nums; opacity:.9; }
+  #rankList .rankEmpty{ opacity:.6; justify-content:center; }
+  #rankEntry{ display:none; margin-top:10px; padding-top:10px; border-top:1px dashed rgba(255,255,255,.18); }
+  #rankEntry.show{ display:block; }
+  .rankCongrats{ font-size:12px; color:#fde68a; margin-bottom:6px; }
+  #rankInitials{ width:100%; padding:11px 12px; border-radius:9px; margin-bottom:8px;
+    background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.18); color:#fff;
+    font-size:16px; text-align:center; letter-spacing:.1em; }
+  #rankInitials:focus{ outline:none; border-color:var(--accent); }
+  #rankSubmitBtn{ width:100%; padding:11px; border-radius:10px; border:none; font-weight:800;
+    color:#0b1020; background:linear-gradient(135deg,var(--accent),var(--accent2)); cursor:pointer; }
+  #rankSubmitBtn:disabled{ opacity:.6; cursor:default; }
+  #rankStatus{ font-size:11.5px; line-height:1.7; opacity:.8; margin-top:8px; min-height:1em; }
 </style>
 </head>
 <body>
@@ -226,8 +256,9 @@
         <b>トーナメント</b><span>個性の違う5人を勝ち抜く。1ゲーム勝負(4ポイント先取・デュースあり)</span>
         <em id="modeTournamentBest"></em>
       </button>
-      <button class="modeBtn" id="modeRally" disabled>
-        <b>ラリーアタック</b><span>準備中: ミスするまでラリーを続けてスコアを競う</span>
+      <button class="modeBtn" id="modeRally">
+        <b>ラリーアタック</b><span>ミスするまでラリーを続けてスコアを競う。PERFECTとコンボで伸びる</span>
+        <em id="modeRallyBest"></em>
       </button>
     </div>
     <button class="ghostBtn" id="modesBack">キャラを選び直す</button>
@@ -244,13 +275,13 @@
   <!-- ================= プレイ ================= -->
   <section id="play" class="screen">
     <div class="hud">
-      <span class="you">あなた<b id="playerScore">0</b></span>
+      <span class="you"><span id="playerLabel">あなた</span><b id="playerScore">0</b></span>
       <span class="mid">
         <span class="vsName" id="vsName"></span>
         <span class="rallyCount">RALLY<b id="rallyCount">0</b></span>
         <span class="deuceNote" id="deuceNote" hidden>デュース</span>
       </span>
-      <span class="cpu">相手<b id="opponentScore">0</b></span>
+      <span class="cpu"><span id="opponentLabel">相手</span><b id="opponentScore">0</b></span>
     </div>
     <div class="gauge" id="gauge">
       <div class="gaugeTrack"><div class="gaugeFill" id="gaugeFill"></div></div>
@@ -277,10 +308,24 @@
   <!-- ================= 結果 ================= -->
   <section id="result" class="screen">
     <span class="sub">RESULT</span>
-    <p class="rank" id="rankVal">-</p>
+    <p class="rank matchOnly" id="rankVal">-</p>
+    <p class="bigScore rallyOnly" id="resultScore">0</p>
     <p class="resultSub" id="resultSub"></p>
-    <p class="score">あなた <b id="resultPlayer">0</b> ー <b id="resultOpponent">0</b> 相手</p>
-    <p class="stats">最長ラリー <b id="resultRally">0</b> ・ PERFECT <b id="resultPerfect">0</b></p>
+    <p class="score matchOnly">あなた <b id="resultPlayer">0</b> ー <b id="resultOpponent">0</b> 相手</p>
+    <p class="stats">最長ラリー <b id="resultRally">0</b> ・ PERFECT <b id="resultPerfect">0</b>
+      <span class="rallyOnly"> ・ 最大コンボ <b id="resultCombo">0</b></span></p>
+    <p class="bestLine rallyOnly" id="resultBest"></p>
+    <div class="rankBox rallyOnly">
+      <div class="rankTitle">みんなのランキング TOP10</div>
+      <ol id="rankList"><li class="rankEmpty">読み込み中…</li></ol>
+      <div id="rankEntry">
+        <div class="rankCongrats">TOP10入り！イニシャルを登録しよう</div>
+        <input type="text" id="rankInitials" maxlength="6" placeholder="例) M.O" autocomplete="off"
+          autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="done">
+        <button id="rankSubmitBtn">登録する</button>
+      </div>
+      <div id="rankStatus"></div>
+    </div>
     <div class="resultBtns" id="resultBtns"></div>
   </section>
 
@@ -427,6 +472,166 @@
     const L = ["0","15","30","40"];
     return { forLabel:L[pointsFor], againstLabel:L[pointsAgainst] };
   }
+
+  /** ラリーアタックの1打あたりの得点。コンボが伸びるほど倍率が上がる */
+  function rallyPoints(tier, combo){
+    const TIER_PTS = { perfect:3, good:1.5, ok:1 };
+    return Math.round(50 * (TIER_PTS[tier] || 1) * (1 + 0.04 * Math.min(combo, 50)));
+  }
+
+  /* =========================================================
+     3b. Scores / Leaderboard / RankUI — ローカルのベスト記録と、みんなのTOP10。
+         Rhythm_game から移植(Firestore の REST API を fetch だけで叩く)。
+         書き込みは Firestore 側のセキュリティルールで検証・制限しており、
+         既存の記録の書き換え・削除はルール上できない。
+     ========================================================= */
+  const Scores = (function(){
+    function keyOf(gameId){ return "tennis-game:best-" + gameId; }
+    function get(gameId){
+      try { return JSON.parse(localStorage.getItem(keyOf(gameId)) || "null"); } catch (e) { return null; }
+    }
+    function submit(gameId, score, extra){
+      const prev = get(gameId);
+      const isNew = !prev || score > prev.score;
+      const rec = {
+        score: isNew ? score : prev.score,
+        extra: isNew ? (extra || null) : prev.extra,
+        playCount: (prev && prev.playCount ? prev.playCount : 0) + 1,
+      };
+      try { localStorage.setItem(keyOf(gameId), JSON.stringify(rec)); } catch (e) {}
+      return { rec: rec, isNew: isNew };
+    }
+    function reset(gameId){ try { localStorage.removeItem(keyOf(gameId)); } catch (e) {} }
+    return { get, submit, reset };
+  })();
+
+  const Leaderboard = (function(){
+    const PROJECT_ID = "rythm-game-mo";
+    const API_KEY = "AIzaSyBBo4f_LqJ2lfdKu8Q11oeiiYq_O-15LSc";
+    const ROOT = "https://firestore.googleapis.com/v1/projects/" + PROJECT_ID + "/databases/(default)/documents";
+
+    function toValue(v){
+      if (v === null || v === undefined) return { nullValue: null };
+      if (typeof v === "string") return { stringValue: v };
+      if (typeof v === "number") return { integerValue: String(Math.round(v)) };
+      if (typeof v === "boolean") return { booleanValue: v };
+      if (typeof v === "object") {
+        const fields = {};
+        Object.keys(v).forEach(function(k){ fields[k] = toValue(v[k]); });
+        return { mapValue: { fields: fields } };
+      }
+      return { nullValue: null };
+    }
+    function fromValue(fv){
+      if (!fv) return null;
+      if ("stringValue" in fv) return fv.stringValue;
+      if ("integerValue" in fv) return parseInt(fv.integerValue, 10);
+      if ("doubleValue" in fv) return fv.doubleValue;
+      if ("booleanValue" in fv) return fv.booleanValue;
+      if ("timestampValue" in fv) return fv.timestampValue;
+      if ("mapValue" in fv) return fieldsToObj(fv.mapValue && fv.mapValue.fields);
+      return null;
+    }
+    function fieldsToObj(fields){
+      const out = {};
+      Object.keys(fields || {}).forEach(function(k){ out[k] = fromValue(fields[k]); });
+      return out;
+    }
+    function fetchTop10(gameId){
+      const url = ROOT + "/leaderboard/" + encodeURIComponent(gameId) + ":runQuery?key=" + API_KEY;
+      const body = { structuredQuery: { from: [{ collectionId: "scores" }],
+        orderBy: [{ field: { fieldPath: "score" }, direction: "DESCENDING" }], limit: 10 } };
+      return fetch(url, { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(body) })
+        .then(function(res){ if (!res.ok) throw new Error("http " + res.status); return res.json(); })
+        .then(function(rows){
+          return (rows || []).filter(function(r){ return r && r.document; }).map(function(r){
+            const obj = fieldsToObj(r.document.fields);
+            obj.id = r.document.name.split("/").pop();
+            return obj;
+          });
+        })
+        .catch(function(e){ console.warn("leaderboard fetch failed:", e); return null; });
+    }
+    function submitScore(gameId, initials, score, extra){
+      const url = ROOT + "/leaderboard/" + encodeURIComponent(gameId) + "/scores?key=" + API_KEY;
+      const fields = {
+        initials: toValue(String(initials || "???").slice(0, 6)),
+        score: toValue(score),
+        ts: { timestampValue: new Date().toISOString() },
+      };
+      if (extra != null) fields.extra = toValue(extra);
+      return fetch(url, { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ fields: fields }) })
+        .then(function(res){ if (!res.ok) throw new Error("http " + res.status); return res.json(); });
+    }
+    return { fetchTop10, submitScore };
+  })();
+
+  const RankUI = (function(){
+    function renderList(list){
+      const ol = $("rankList");
+      ol.innerHTML = "";
+      if (!list.length) {
+        ol.innerHTML = '<li class="rankEmpty">まだ記録がありません。最初の1人になろう！</li>';
+        return;
+      }
+      list.forEach(function(row, i){
+        const li = document.createElement("li");
+        const no = document.createElement("span");
+        no.className = "rankNo"; no.textContent = (i + 1) + ".";
+        const init = document.createElement("span");
+        init.className = "rankInit"; init.textContent = row.initials || "???";
+        const sc = document.createElement("span");
+        sc.className = "rankScore"; sc.textContent = row.score;
+        li.appendChild(no); li.appendChild(init); li.appendChild(sc);
+        ol.appendChild(li);
+      });
+    }
+    // ソフトキーボードで入力欄が隠れないようにし、Enterでそのまま登録できるようにする
+    $("rankInitials").addEventListener("focus", function(){
+      setTimeout(function(){ $("rankInitials").scrollIntoView({ block:"center", behavior:"smooth" }); }, 300);
+    });
+    $("rankInitials").addEventListener("keydown", function(e){
+      if (e.key === "Enter") { e.preventDefault(); $("rankSubmitBtn").click(); }
+    });
+
+    function show(gameId, score, extra){
+      $("rankList").innerHTML = '<li class="rankEmpty">読み込み中…</li>';
+      $("rankEntry").classList.remove("show");
+      $("rankStatus").textContent = "";
+      Leaderboard.fetchTop10(gameId).then(function(top10){
+        if (top10 === null) {
+          $("rankList").innerHTML = "";
+          $("rankStatus").textContent = "ランキングを取得できませんでした（通信環境をご確認ください）";
+          return;
+        }
+        renderList(top10);
+        const qualifies = score > 0 && (top10.length < 10 || score > top10[top10.length - 1].score);
+        if (!qualifies) return;
+        $("rankEntry").classList.add("show");
+        $("rankInitials").value = "";
+        const btn = $("rankSubmitBtn");
+        btn.disabled = false;
+        btn.textContent = "登録する";
+        btn.onclick = function(){
+          const initials = ($("rankInitials").value || "").trim() || "???";
+          btn.disabled = true;
+          btn.textContent = "登録中…";
+          Leaderboard.submitScore(gameId, initials, score, extra).then(function(){
+            $("rankStatus").textContent = "登録しました！";
+            $("rankEntry").classList.remove("show");
+            return Leaderboard.fetchTop10(gameId);
+          }).then(function(fresh){
+            if (fresh) renderList(fresh);
+          }).catch(function(){
+            $("rankStatus").textContent = "登録に失敗しました。もう一度お試しください。";
+            btn.disabled = false;
+            btn.textContent = "登録する";
+          });
+        };
+      });
+    }
+    return { show, renderList };
+  })();
 
   /* =========================================================
      4. Characters — キャラクター選択とポーズ画像
@@ -589,6 +794,22 @@
       startDuration:1000, minDuration:680, durationMul:0.85, smashReachMul:0.30, lobWeak:false, tellMs:150, smashEvery:4 },
   ];
   function findOpponent(id){ return OPPONENTS.find(function(o){ return o.id === id; }) || OPPONENTS[0]; }
+
+  /* ラリーアタック用の「ラリーマシン」。必ず返す(reach 100・アウト無し)代わりに、
+     続けるほど球が速く・狙いが厳しくなる(難易度ランプは rampFor で計算する)。 */
+  const RALLY_MACHINE = {
+    id:"machine", name:"ラリーマシン", desc:"ミスするまで続く", style:"machine",
+    speed:0.30, reactionMs:60, reach:100, errorRate:0, smartChance:0.10,
+    startDuration:1100, minDuration:520, durationMul:1.0, smashReachMul:1.0, lobWeak:false, tellMs:0,
+  };
+  /** ラリーアタックの難易度ランプ。hits(累計ヒット数)で球速と狙いの厳しさが上がる */
+  function rampFor(hits){
+    return {
+      duration: Math.max(520, 1100 - hits * 12),
+      smartChance: Math.min(0.85, 0.10 + hits * 0.012),
+      smash: hits > 0 && hits % 10 === 0,
+    };
+  }
   function canReach(receiverX, ballX, radius){
     return Math.abs(receiverX - ballX) <= radius;
   }
@@ -673,6 +894,9 @@
     let tell = null;              // 相手の予備動作 { dir:"L"|"R", charge:bool }
     let atNet = false;            // ネットラッシャーが前に出ているか
     const stats = { deuceSeen:false, playerMisses:0, smashPoints:0, lobPoints:0, outs:0 };
+    // ラリーアタック用。hits=累計ヒット数、combo=連続perfect/good(okで途切れる)
+    const rallyRun = { hits:0, score:0, combo:0, maxCombo:0 };
+    function isRally(){ return meta.mode === "rally"; }
     const OPPONENT_TOP_NET = 22;  // ネット際に出た時の相手の位置(top %)
     const OPPONENT_Y_NET = 27;    // その時のボールの打点(%)
 
@@ -717,12 +941,18 @@
         now < opponentSwingUntil ? "swing" : (opponent.running ? "run" : "idle"), opponent.facing);
     }
     function rallyBase(){
+      if (isRally()) return rampFor(rallyRun.hits).duration;
       return Math.max(opp.minDuration, opp.startDuration - exchanges * DURATION_STEP);
     }
     function clearTimers(){
       clearTimeout(autoMissTimer); clearTimeout(arriveTimer); clearTimeout(hitstopTimer);
     }
     function paintRally(){ $("rallyCount").textContent = String(rally.count); }
+    /** ラリーアタック中のHUD: 得点(左)とコンボ(右)をテニスの点数の代わりに出す */
+    function paintRallyScore(){
+      $("playerScore").textContent = String(rallyRun.score);
+      $("opponentScore").textContent = String(rallyRun.combo);
+    }
     function paintGauge(){
       $("gaugeFill").style.width = gauge + "%";
       $("gauge").classList.toggle("full", gauge >= 100);
@@ -869,10 +1099,11 @@
         return;
       }
 
-      lastSmartReturn = rand() < opp.smartChance;
+      const ramp = isRally() ? rampFor(rallyRun.hits) : null;
+      lastSmartReturn = rand() < (ramp ? ramp.smartChance : opp.smartChance);
       let targetX = lastSmartReturn ? aimAwayFromPlayer(player.x) : aimFromContact(opponent.x, ball.targetX);
       if (opp.style === "power") targetX = lerp(targetX, targetX < 50 ? 8 : 92, 0.6); // 角へさらに寄せる
-      const isSmash = !!opp.smashEvery && (opponentHits % opp.smashEvery === 0);
+      const isSmash = ramp ? ramp.smash : (!!opp.smashEvery && (opponentHits % opp.smashEvery === 0));
       const duration = Math.max(opp.minDuration * 0.7, rallyBase() * opp.durationMul) * (isSmash ? 0.65 : 1);
       if (opp.style === "netrush" && !atNet && rand() < 0.6) setNet(true); // 返球後に前へ出る
 
@@ -929,6 +1160,15 @@
       rally.count += 1; paintRally();
       if (rally.count > rally.longest) rally.longest = rally.count;
       if (tier === "perfect") rally.perfects += 1;
+      if (isRally()) {
+        rallyRun.hits += 1;
+        // ok(EARLY/LATE)は得点するがコンボは途切れる
+        if (tier === "ok") rallyRun.combo = 0;
+        else { rallyRun.combo += 1; rallyRun.maxCombo = Math.max(rallyRun.maxCombo, rallyRun.combo); }
+        rallyRun.score += rallyPoints(tier, rallyRun.combo);
+        if (rallyRun.hits % 10 === 0) rallyRun.score += 500;   // 10本ごとのボーナス
+        paintRallyScore();
+      }
       const course = forcedCourse || "straight";
       forcedCourse = null;
       // ゲージ満タンなら perfect/good が自動でスマッシュになる(追加入力なし)
@@ -996,6 +1236,7 @@
       Fx.bounce(el().player, "miss");
       stats.playerMisses += 1;
       lastShot = { tier:"miss", deltaMs:null, course:null, targetX:null, duration:null, arc:null, reason: reason };
+      if (isRally()) { Sfx.pointLose(); phase = "gameOver"; setTimeout(finish, 700); return; }
       pointFor("opponent");
     }
 
@@ -1021,19 +1262,26 @@
 
     function finish(){
       const win = lastLabels.winner === "for";
+      $("result").dataset.mode = isRally() ? "rally" : "tournament";
       $("rankVal").textContent = win ? "WIN" : "LOSE";
-      $("resultSub").textContent = "vs " + opp.name;
+      $("resultScore").textContent = String(rallyRun.score);
+      $("resultSub").textContent = isRally()
+        ? (rallyRun.hits + " 回続いた")
+        : ("vs " + opp.name);
       $("resultPlayer").textContent = String(score.player);
       $("resultOpponent").textContent = String(score.opponent);
-      $("resultRally").textContent = String(rally.longest);
+      $("resultRally").textContent = String(isRally() ? rallyRun.hits : rally.longest);
       $("resultPerfect").textContent = String(rally.perfects);
+      $("resultCombo").textContent = String(rallyRun.maxCombo);
       $("resultBtns").innerHTML = "";
-      if (win) Sfx.win(); else Sfx.lose();
+      if (isRally()) Sfx.lose(); else if (win) Sfx.win(); else Sfx.lose();
       show("result");
       stopLoop();
-      const result = { win: win, opponentId: opp.id, pointsPlayer: score.player, pointsOpponent: score.opponent,
+      const result = { mode: meta.mode, win: win, opponentId: opp.id,
+        pointsPlayer: score.player, pointsOpponent: score.opponent,
         longestRally: rally.longest, perfects: rally.perfects, deuceSeen: stats.deuceSeen,
-        playerMisses: stats.playerMisses, smashPoints: stats.smashPoints, lobPoints: stats.lobPoints, outs: stats.outs };
+        playerMisses: stats.playerMisses, smashPoints: stats.smashPoints, lobPoints: stats.lobPoints, outs: stats.outs,
+        hits: rallyRun.hits, score: rallyRun.score, maxCombo: rallyRun.maxCombo };
       if (typeof onEnd === "function") onEnd(result);
     }
 
@@ -1048,16 +1296,22 @@
       lastSmartReturn = false; lastShot = null; pendingShot = null; forcedCourse = null;
       exchanges = 0; opponentHits = 0; gauge = 0; paintGauge();
       stats.deuceSeen = false; stats.playerMisses = 0; stats.smashPoints = 0; stats.lobPoints = 0; stats.outs = 0;
+      rallyRun.hits = 0; rallyRun.score = 0; rallyRun.combo = 0; rallyRun.maxCombo = 0;
       applyTell(null); setNet(false);
-      $("vsName").textContent = "vs " + opp.name;
+      $("vsName").textContent = isRally() ? "ラリーアタック" : ("vs " + opp.name);
+      $("playerLabel").textContent = isRally() ? "SCORE" : "あなた";
+      $("opponentLabel").textContent = isRally() ? "COMBO" : "相手";
       rally.count = 0; rally.longest = 0; rally.perfects = 0; paintRally();
       player.x = 50; player.targetX = 50; player.cooldownUntil = 0; player.running = null; player.facing = "left";
       opponent.x = 50; opponent.running = null; opponent.facing = "left";
       playerSwingUntil = 0; opponentSwingUntil = 0;
       vis.player.pose = null; vis.player.flip = null; vis.opponent.pose = null; vis.opponent.flip = null;
       phase = "serve";
-      $("playerScore").textContent = lastLabels.forLabel;
-      $("opponentScore").textContent = lastLabels.againstLabel;
+      if (isRally()) paintRallyScore();
+      else {
+        $("playerScore").textContent = lastLabels.forLabel;
+        $("opponentScore").textContent = lastLabels.againstLabel;
+      }
       $("deuceNote").hidden = true;
       const e = el();
       e.player.classList.remove("hit","miss","whiff");
@@ -1096,6 +1350,7 @@
           arrivalAt: ball.flightStart + ball.flightDuration, arc: ball.arc, smash: !!ball.smash },
         stats: { deuceSeen: stats.deuceSeen, playerMisses: stats.playerMisses, smashPoints: stats.smashPoints,
           lobPoints: stats.lobPoints, outs: stats.outs, opponentHits: opponentHits },
+        rallyRun: { hits: rallyRun.hits, score: rallyRun.score, combo: rallyRun.combo, maxCombo: rallyRun.maxCombo },
         player: { x: player.x, targetX: player.targetX, min: player.min, max: player.max,
           running: player.running, facing: player.facing, cooldownUntil: player.cooldownUntil },
         visual: { playerPose: vis.player.pose, playerFlip: vis.player.flip,
@@ -1255,6 +1510,29 @@
       },
     };
 
+    const RALLY_GAME_ID = "tennis";   // Firestore の leaderboard/{gameId}
+    const Rally = {
+      start: function(){
+        current = { mode:"rally", stage:null };
+        Sfx.unlock();
+        TennisGame.begin({ opponent: RALLY_MACHINE, meta: current, onEnd: Rally.onEnd });
+      },
+      onEnd: function(res){
+        const rec = Scores.submit(RALLY_GAME_ID, res.score, { hits: res.hits, maxCombo: res.maxCombo,
+          perfects: res.perfects, char: selectedChar });
+        $("resultBest").textContent = rec.isNew
+          ? "自己ベスト更新！"
+          : ("自己ベスト " + rec.rec.score);
+        const box = $("resultBtns");
+        box.innerHTML = "";
+        box.appendChild(btn("bigBtn", "もう一度", function(){ Rally.start(); }));
+        box.appendChild(btn("ghostBtn", "モード選択へ", function(){ paintModes(); show("modes"); }));
+        // Firestore のTOP10。上限(ルール側10万点)に合わせて丸めて送る
+        RankUI.show(RALLY_GAME_ID, Math.min(res.score, 100000),
+          { hits: res.hits, maxCombo: res.maxCombo, char: selectedChar });
+      },
+    };
+
     function paintLadder(){
       const t = loadT();
       const box = $("ladderList");
@@ -1281,9 +1559,11 @@
       const t = loadT();
       $("modeTournamentBest").textContent = t.cleared ? "優勝済み！ 全員に勝った"
         : (t.bestStage > 0 ? "到達: " + (t.bestStage + 1) + "人目 / " + OPPONENTS.length + "人" : "");
+      const best = Scores.get(RALLY_GAME_ID);
+      $("modeRallyBest").textContent = best ? ("自己ベスト " + best.score) : "";
     }
-    return { Tournament, paintLadder, paintModes, loadTournament: loadT, resetTournament: resetT,
-      current: function(){ return current; } };
+    return { Tournament, Rally, paintLadder, paintModes, loadTournament: loadT, resetTournament: resetT,
+      rallyGameId: RALLY_GAME_ID, current: function(){ return current; } };
   })();
 
   /* =========================================================
@@ -1291,6 +1571,7 @@
      ========================================================= */
   $("startBtn").addEventListener("click", function(){ Sfx.unlock(); Modes.paintModes(); show("modes"); });
   $("modeTournament").addEventListener("click", function(){ Modes.paintLadder(); show("ladder"); });
+  $("modeRally").addEventListener("click", function(){ Modes.Rally.start(); });
   $("modesBack").addEventListener("click", function(){ show("title"); });
   $("ladderBack").addEventListener("click", function(){ Modes.paintModes(); show("modes"); });
 
@@ -1304,8 +1585,12 @@
     startMode: function(mode, opts){
       opts = opts || {};
       if (mode === "tournament") Modes.Tournament.start(opts.stage || 0, !!opts.force);
+      else if (mode === "rally") Modes.Rally.start();
     },
     tournament: { load: Modes.loadTournament, reset: Modes.resetTournament },
+    scores: { get: function(){ return Scores.get(Modes.rallyGameId); },
+      reset: function(){ Scores.reset(Modes.rallyGameId); } },
+    rallyPoints: rallyPoints, rampFor: rampFor,
     opponents: OPPONENTS,
     setRng: setRng, scoreLabels: scoreLabels, sfx: Sfx,
   };

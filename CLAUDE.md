@@ -42,8 +42,16 @@ glue at the bottom).
   branches. Each opponent has a readable "tell": a lean toward the aimed side, a red `charge` glow
   before a hard shot, and the net-rusher physically moving up the court (`atNet`, weak to lobs).
 - **`TennisGame` knows nothing about modes.** `begin({opponent, meta, onEnd})` reports the finished
-  game through `onEnd(result)`; `Modes.Tournament` is what writes progress and draws the result
-  screen's buttons. Keep new modes on that seam.
+  game through `onEnd(result)`; `Modes.Tournament` / `Modes.Rally` write progress and draw the
+  result screen's buttons. Keep new modes on that seam.
+- **Rally Attack** (`meta.mode === "rally"`) reuses the same rally loop with `RALLY_MACHINE`
+  (reach 100, never misses) and `rampFor(hits)` for the difficulty curve; one miss ends the run.
+  Scoring is `rallyPoints(tier, combo)` plus 500 every 10 hits, an `ok` scores but breaks the combo.
+  The HUD swaps its two labels to SCORE / COMBO instead of the tennis points.
+- **Leaderboard**: `Scores` (localStorage best) / `Leaderboard` (Firestore REST via `fetch`) /
+  `RankUI` are ported from `Rhythm_game/index.html`; Rally Attack submits under gameId `tennis`,
+  capped at 100000 to match the Firestore rules. A sandbox can't reach `firestore.googleapis.com`,
+  so a stuck "読み込み中…" in local tests is the environment, not a bug.
 - **Smash gauge**: perfect/good hits fill `gauge` (34 / 12), a lost point drains 20, and at 100 the
   next perfect/good automatically becomes a smash (no extra input — a down-swipe would fight the
   browser's pull-to-refresh). Lobs never consume the gauge (`keepSmash`).
@@ -62,8 +70,9 @@ glue at the bottom).
   takes the point — a bug that has bitten this repo repeatedly. Swing at the state you already
   have.
 - **`window.__tennis`**: `begin/swing/applyCourse/forceCourse/startMode/tournament/opponents/
-  setRng/scoreLabels/debugState/sfx`. Tests normally start a match with
-  `startMode("tournament", {stage: n, force: true})` so they can pick any opponent directly.
+  setRng/scoreLabels/debugState/sfx`, plus `scores`, `rallyPoints`, `rampFor`. Tests normally start
+  a match with `startMode("tournament", {stage: n, force: true})` so they can pick any opponent
+  directly, or `startMode("rally")`.
   `debugState()` exposes phase, ball (incl. `arrivalAt`), player/opponent, `lastShot`
   (tier/deltaMs/course), score labels and the timing constants, so Playwright can compute exactly
   when to dispatch a `pointerdown` on `#court` — same idea as `debugState()` on `EchoGame`/`RingGame`
