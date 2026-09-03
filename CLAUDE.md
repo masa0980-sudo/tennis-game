@@ -27,14 +27,26 @@ Single `<script>` inside `index.html`, following the same numbered-module style 
 `Rhythm_game/index.html` (small helpers, then the game's own IIFE module, then screen-switching
 glue at the bottom).
 
-- **Screens**: `title`(character select) → `play` → `result`, toggled via `show(id)` +
-  a `SCREENS` array. Any new screen must be added to `SCREENS`.
+- **Screens**: `title`(character select) → `modes` → `ladder` → `play` → `result`, toggled via
+  `show(id)` + a `SCREENS` array. Any new screen must be added to `SCREENS`.
 - **Modules (in dependency order)**: `Sfx` (Web Audio, ported from Rhythm_game) → `Court`/`rand`
   (logical X 0–100 mapped to CSS 15–85%, swappable RNG via `setRng`) → `scoreLabels()` (pure
   real-tennis scoring: 0/15/30/40, deuce, AD) → `Characters`/`setPose` → `ShotSystem` (timing
-  tiers + course → target/duration/arc, DOM-free) → `AutoMover` → opponent data + `canReach`/
-  `aimFromContact`/`aimAwayFromPlayer` → `Fx` (popups/flash) → `TennisGame` (rAF loop, rally
-  state machine, `debugState`) → `Input` → navigation.
+  tiers + course → target/duration/arc, DOM-free) → `AutoMover` → `OPPONENTS` data + `canReach`/
+  `aimFromContact`/`aimAwayFromPlayer` → `Fx` (popups/flash/shake) → `TennisGame` (rAF loop, rally
+  state machine, `debugState`) → `Modes` (tournament progress in localStorage) → `Input` →
+  navigation.
+- **`OPPONENTS`** is a data table (speed / reactionMs / reach / errorRate / smartChance /
+  durationMul / smashReachMul / lobWeak / tellMs / smashEvery). All personality lives in
+  `opponentArrives()`, which reads those numbers — balance changes should be table edits, not new
+  branches. Each opponent has a readable "tell": a lean toward the aimed side, a red `charge` glow
+  before a hard shot, and the net-rusher physically moving up the court (`atNet`, weak to lobs).
+- **`TennisGame` knows nothing about modes.** `begin({opponent, meta, onEnd})` reports the finished
+  game through `onEnd(result)`; `Modes.Tournament` is what writes progress and draws the result
+  screen's buttons. Keep new modes on that seam.
+- **Smash gauge**: perfect/good hits fill `gauge` (34 / 12), a lost point drains 20, and at 100 the
+  next perfect/good automatically becomes a smash (no extra input — a down-swipe would fight the
+  browser's pull-to-refresh). Lobs never consume the gauge (`keepSmash`).
 - **Controls are one-thumb**: the player character auto-runs to the ball (`AutoMover`). A tap /
   Space swings at `pointerdown` time; the judgment tier (`perfect`/`good`/`ok`/`whiff`) comes from
   `tapTime - arrivalAt`. The course (left/right/straight/lob) is read *after* the swing from the
@@ -42,9 +54,16 @@ glue at the bottom).
   that latency. A whiff is not an instant loss — it only locks swinging for a cooldown, so the
   auto-miss timer decides the point.
 - **Rally phases**: `serve → ballToPlayer → hitstop → ballToOpponent → returning → ballToPlayer …`,
-  ending in `pointOver` / `gameOver`. Ball position is lerped each frame with a fake arc
-  (`hover = arc*4t(1-t)`); logic uses the lerped x, the arc is render-only.
-- **`window.__tennis`**: `begin/swing/applyCourse/forceCourse/setRng/scoreLabels/debugState/sfx`.
+  ending in `pointOver` / `gameOver`; `ballOut` is the opponent's shot sailing wide. Ball position
+  is lerped each frame with a fake arc (`hover = arc*4t(1-t)`); logic uses the lerped x, the arc is
+  render-only.
+- **Writing Playwright tests**: after the opponent returns, the incoming ball is *already* in
+  `ballToPlayer`. Waiting for a ball with a newer `flightStart` skips it and the auto-miss timer
+  takes the point — a bug that has bitten this repo repeatedly. Swing at the state you already
+  have.
+- **`window.__tennis`**: `begin/swing/applyCourse/forceCourse/startMode/tournament/opponents/
+  setRng/scoreLabels/debugState/sfx`. Tests normally start a match with
+  `startMode("tournament", {stage: n, force: true})` so they can pick any opponent directly.
   `debugState()` exposes phase, ball (incl. `arrivalAt`), player/opponent, `lastShot`
   (tier/deltaMs/course), score labels and the timing constants, so Playwright can compute exactly
   when to dispatch a `pointerdown` on `#court` — same idea as `debugState()` on `EchoGame`/`RingGame`

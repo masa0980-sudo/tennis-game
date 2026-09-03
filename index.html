@@ -38,6 +38,35 @@
   .bigBtn:active{ transform:scale(.96); }
   .ghostBtn{ padding:10px 22px; border-radius:12px; border:1px solid rgba(255,255,255,.2);
     background:rgba(255,255,255,.05); color:#fff; font-size:14px; cursor:pointer; }
+  .h2{ font-size:22px; }
+
+  /* ===== モード選択 ===== */
+  .modeList{ display:flex; flex-direction:column; gap:12px; width:100%; max-width:340px; }
+  .modeBtn{ display:flex; flex-direction:column; align-items:flex-start; gap:4px; text-align:left;
+    padding:16px 18px; border-radius:16px; border:2px solid rgba(255,255,255,.14);
+    background:rgba(255,255,255,.06); color:#fff; cursor:pointer; }
+  .modeBtn b{ font-size:18px; }
+  .modeBtn span{ font-size:12px; color:#9aa4c4; }
+  .modeBtn em{ font-style:normal; font-size:11px; color:#7dd3fc; }
+  .modeBtn:not([disabled]):active{ transform:scale(.98); }
+  .modeBtn[disabled]{ opacity:.45; cursor:default; }
+
+  /* ===== トーナメントのラダー ===== */
+  .ladderList{ display:flex; flex-direction:column-reverse; gap:8px; width:100%; max-width:360px; }
+  .ladderRow{ display:flex; align-items:center; gap:12px; padding:10px 12px; border-radius:14px;
+    background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); text-align:left; }
+  .ladderRow img{ width:44px; height:44px; object-fit:contain; flex:none; }
+  .ladderRow .info{ flex:1; min-width:0; }
+  .ladderRow .name{ font-weight:800; font-size:14px; }
+  .ladderRow .desc{ font-size:11px; color:#9aa4c4; }
+  .ladderRow .state{ font-size:11px; color:#fde68a; }
+  .ladderRow.locked{ opacity:.45; }
+  .ladderRow.locked img{ filter:brightness(0) opacity(.5); }
+  .ladderRow .fightBtn{ padding:8px 14px; border-radius:10px; border:none; font-weight:800;
+    color:#0b1020; background:linear-gradient(135deg,var(--accent),var(--accent2)); cursor:pointer; flex:none; }
+  .ladderRow.locked .fightBtn{ display:none; }
+  .ladderRow.beaten .name::after{ content:" ✓"; color:var(--good); }
+  .resultBtns{ display:flex; flex-direction:column; gap:10px; align-items:center; }
 
   /* ===== プレイ画面 ===== */
   #play{ justify-content:space-between; padding:12px 10px 16px; gap:8px; }
@@ -47,8 +76,22 @@
   .hud .you b{ color:#7dd3fc; }
   .hud .cpu{ text-align:right; }
   .hud .cpu b{ color:#f0abfc; }
-  .hud .mid{ display:flex; flex-direction:column; align-items:center; gap:3px; }
+  .hud .mid{ display:flex; flex-direction:column; align-items:center; gap:2px; }
+  .vsName{ font-size:11px; color:#9aa4c4; }
   .rallyCount{ font-size:11px; letter-spacing:.14em; font-weight:800; color:#cbd5e1; }
+
+  /* 必殺ゲージ。満タンで発光し、次のperfect/goodが自動でスマッシュになる */
+  .gauge{ display:flex; align-items:center; gap:8px; width:100%; max-width:460px; }
+  .gaugeTrack{ flex:1; height:8px; border-radius:999px; background:rgba(255,255,255,.1); overflow:hidden; }
+  .gaugeFill{ height:100%; width:0%; border-radius:999px; transition:width .25s ease-out;
+    background:linear-gradient(90deg, #f59e0b, #fde68a); }
+  .gaugeLabel{ flex:none; font-size:10px; letter-spacing:.14em;
+    font-weight:800; color:#fde68a; opacity:.5; }
+  .gauge.full .gaugeFill{ background:linear-gradient(90deg,#fb7185,#fde68a,#fb7185); background-size:200% 100%;
+    animation:gaugeShine .8s linear infinite; box-shadow:0 0 14px rgba(253,230,138,.8); }
+  .gauge.full .gaugeLabel{ opacity:1; animation:blink .5s steps(2) infinite; }
+  @keyframes gaugeShine{ from{ background-position:0 0; } to{ background-position:200% 0; } }
+  @keyframes blink{ to{ opacity:.3; } }
   .rallyCount b{ font-size:14px; display:inline; color:#fff; margin-left:4px; }
   .deuceNote{ font-size:11px; font-weight:800; letter-spacing:.08em;
     color:#fde68a; padding:2px 10px; border-radius:999px; background:rgba(253,230,138,.14);
@@ -102,7 +145,18 @@
   /* ポーズ(idle/run/swing)は画像の差し替え、向きは .body の --flip(1=左向き/-1=右向き)。
      素材は左向きに描かれているので右へ向く時だけ反転する。反転を img ではなく .body に
      付けるのは、img の transform transition が scaleX(0) を経由して一瞬ペラペラになるため */
-  .charWrap .body{ position:relative; transform: scaleX(var(--flip, 1)); }
+  .charWrap .body{ position:relative; transform: scaleX(var(--flip, 1)) rotate(var(--lean, 0deg));
+    transition: transform .18s; }
+  /* テル(相手の予備動作): 狙う側へ体を傾ける(--lean)、強打の前は縮んで赤い輪(.charge) */
+  .charWrap.charge img{ animation: chargePulse .18s ease-in-out infinite alternate;
+    filter: drop-shadow(0 0 10px rgba(248,113,113,.95)); }
+  @keyframes chargePulse{ from{ transform:scale(.9); } to{ transform:scale(.97); } }
+  /* ネットラッシャーの前進。相手の打点(top)がネット際まで下りる */
+  .opponentWrap{ transition: top .45s ease-out; }
+  .court.shake{ animation: shake .25s linear; }
+  @keyframes shake{ 0%,100%{ transform:translate(0,0); } 20%{ transform:translate(-4px,2px); }
+    40%{ transform:translate(4px,-2px); } 60%{ transform:translate(-3px,-2px); } 80%{ transform:translate(3px,2px); } }
+  @media (prefers-reduced-motion: reduce){ .court.shake{ animation:none; } }
   .charWrap img{ width:96px; height:auto; display:block; transition: transform .12s; }
   .charWrap[data-pose="run"] img{ animation: runBob .22s ease-in-out infinite alternate; }
   @keyframes runBob{ from{ margin-top:0; } to{ margin-top:-6px; } }
@@ -125,6 +179,8 @@
   .judgePop.good{ color:#7dd3fc; }
   .judgePop.ok{ color:#fde68a; font-size:15px; }
   .judgePop.whiff{ color:#fca5a5; font-size:15px; }
+  .judgePop.out{ color:#fb923c; font-size:22px; }
+  .judgePop.smash{ color:#fda4af; font-size:24px; text-shadow:0 0 14px rgba(251,113,133,.9), 0 2px 6px rgba(0,0,0,.55); }
   @keyframes popUp{
     0%{ opacity:0; transform:translate(-50%,10px) scale(.8); }
     15%{ opacity:1; transform:translate(-50%,0) scale(1.12); }
@@ -146,6 +202,7 @@
   #result .score b{ color:#fff; font-size:28px; }
   #result .stats{ font-size:12px; color:#9aa4c4; margin:0; }
   #result .stats b{ color:#fff; }
+  #result .resultSub{ margin:0; font-size:13px; color:#9aa4c4; }
 </style>
 </head>
 <body>
@@ -160,15 +217,44 @@
     <p class="tapHint">タップ / スペースで打つ　・　◀ ▲ ▶ スワイプ / 矢印キーでコース</p>
   </section>
 
+  <!-- ================= モード選択 ================= -->
+  <section id="modes" class="screen">
+    <span class="sub">MODE</span>
+    <h1 class="h2">モードを選ぶ</h1>
+    <div class="modeList">
+      <button class="modeBtn" id="modeTournament">
+        <b>トーナメント</b><span>個性の違う5人を勝ち抜く。1ゲーム勝負(4ポイント先取・デュースあり)</span>
+        <em id="modeTournamentBest"></em>
+      </button>
+      <button class="modeBtn" id="modeRally" disabled>
+        <b>ラリーアタック</b><span>準備中: ミスするまでラリーを続けてスコアを競う</span>
+      </button>
+    </div>
+    <button class="ghostBtn" id="modesBack">キャラを選び直す</button>
+  </section>
+
+  <!-- ================= トーナメント: 対戦相手のラダー ================= -->
+  <section id="ladder" class="screen">
+    <span class="sub">TOURNAMENT</span>
+    <h1 class="h2">対戦相手</h1>
+    <div class="ladderList" id="ladderList"></div>
+    <button class="ghostBtn" id="ladderBack">モード選択へ</button>
+  </section>
+
   <!-- ================= プレイ ================= -->
   <section id="play" class="screen">
     <div class="hud">
       <span class="you">あなた<b id="playerScore">0</b></span>
       <span class="mid">
+        <span class="vsName" id="vsName"></span>
         <span class="rallyCount">RALLY<b id="rallyCount">0</b></span>
         <span class="deuceNote" id="deuceNote" hidden>デュース</span>
       </span>
       <span class="cpu">相手<b id="opponentScore">0</b></span>
+    </div>
+    <div class="gauge" id="gauge">
+      <div class="gaugeTrack"><div class="gaugeFill" id="gaugeFill"></div></div>
+      <span class="gaugeLabel" id="gaugeLabel">SMASH</span>
     </div>
     <div class="court" id="court">
       <div class="netLine"></div>
@@ -192,10 +278,10 @@
   <section id="result" class="screen">
     <span class="sub">RESULT</span>
     <p class="rank" id="rankVal">-</p>
+    <p class="resultSub" id="resultSub"></p>
     <p class="score">あなた <b id="resultPlayer">0</b> ー <b id="resultOpponent">0</b> 相手</p>
     <p class="stats">最長ラリー <b id="resultRally">0</b> ・ PERFECT <b id="resultPerfect">0</b></p>
-    <button class="bigBtn" id="retryBtn">もう一度</button>
-    <button class="ghostBtn" id="titleBtn">キャラを選び直す</button>
+    <div class="resultBtns" id="resultBtns"></div>
   </section>
 
 </div>
@@ -208,7 +294,7 @@
      0. 小道具
      ========================================================= */
   function $(id){ return document.getElementById(id); }
-  const SCREENS = ["title","play","result"];
+  const SCREENS = ["title","modes","ladder","play","result"];
   function show(id){
     SCREENS.forEach(function(s){
       $(s).classList.toggle("active", s === id);
@@ -272,6 +358,12 @@
     }
     function whiff(){ tone(now(), { type:"sawtooth", freq:220, freqEnd:120, dur:0.18, peak:0.2 }); }
     function bounce(){ tone(now(), { type:"sine", freq:180, dur:0.05, peak:0.14 }); }
+    function smash(){
+      const t = now();
+      tone(t, { type:"square",   freq:160,  freqEnd:60,  dur:0.2,  peak:0.3 });
+      tone(t, { type:"sawtooth", freq:1200, freqEnd:300, dur:0.16, peak:0.14 });
+    }
+    function charge(){ tone(now(), { type:"sine", freq:330, freqEnd:520, dur:0.16, peak:0.12 }); }
     function pointWin(){
       const t = now();
       [660, 880, 1320].forEach(function(f, i){ tone(t + i * 0.09, { type:"sine", freq:f, dur:0.14, peak:0.22 }); });
@@ -292,7 +384,7 @@
     }
     function state(){ return ctx ? ctx.state : "none"; }
 
-    return { unlock, hit, whiff, bounce, pointWin, pointLose, win, lose, state };
+    return { unlock, hit, whiff, bounce, smash, charge, pointWin, pointLose, win, lose, state };
   })();
 
   /* =========================================================
@@ -433,15 +525,18 @@
       if (course === "lob") return opponentX < 50 ? 80 : 20;
       return (COURSES[course] || COURSES.straight).target;
     }
-    // ctx: { rallyBase, minDuration, opponentX }
+    // ctx: { rallyBase, minDuration, opponentX, smash }
+    // スマッシュ(必殺): 速く低く、誤差半分。相手側の届く範囲は Opponents 側で狭める
     function resolve(tier, course, ctx){
       const T = TIERS[tier] || TIERS.ok;
       const C = COURSES[course] || COURSES.straight;
+      const smash = !!ctx.smash;
+      const err = smash ? T.err / 2 : T.err;
       const base = courseTarget(course, ctx.opponentX);
-      const targetX = clamp(base + (rand() - 0.5) * 2 * T.err, 4, 96);
-      const duration = clamp(ctx.rallyBase * T.mul * C.mul, ctx.minDuration * 0.55, 1800);
-      return { tier: tier, course: course, smash: false, targetX: targetX, duration: duration,
-        arc: C.arc, errorUnits: T.err, gaugeGain: T.gauge };
+      const targetX = clamp(base + (rand() - 0.5) * 2 * err, 4, 96);
+      const duration = clamp(ctx.rallyBase * T.mul * C.mul * (smash ? 0.62 : 1), ctx.minDuration * 0.55, 1800);
+      return { tier: tier, course: course, smash: smash, targetX: targetX, duration: duration,
+        arc: smash ? 18 : C.arc, errorUnits: err, gaugeGain: T.gauge };
     }
     return { judge, resolve, courseTarget, PERFECT_MS, GOOD_MS, EARLY_MS, LATE_MS, SWING_COOLDOWN_MS };
   })();
@@ -469,14 +564,31 @@
   };
 
   /* =========================================================
-     7. Opponents — 相手の定義(データ駆動)。
-        今はスパーリング相手1人だけ。個性の違う相手のラダーは次段階で足す。
+     7. Opponents — 相手の定義(データ駆動)。トーナメントはこの順に勝ち抜く。
+        speed: 論理単位/ms、reactionMs: 動き出す遅延、reach: 届く範囲、
+        errorRate: 返球がアウトになる確率、smartChance: プレイヤーから遠い側を狙う確率、
+        durationMul: 返球の速さ(小さいほど速い)、smashReachMul: プレイヤーのスマッシュに
+        対する届く範囲の倍率、lobWeak: ネット際に出た時ロブに弱い、
+        tellMs: 強打前の予備動作の長さ、smashEvery: n本に1本スマッシュを打つ
      ========================================================= */
-  const DEFAULT_OPPONENT = {
-    id:"sparring", name:"スパーリング",
-    speed:0.072, reactionMs:140, reach:17, errorRate:0, smartChance:0.35,
-    startDuration:1200, minDuration:680, durationMul:1.0, smashReachMul:0.5,
-  };
+  const OPPONENTS = [
+    { id:"rookie", name:"ルーキー", desc:"ミスが多い。まずは相手のアウトを待とう", style:"erratic",
+      speed:0.052, reactionMs:220, reach:15, errorRate:0.18, smartChance:0.10,
+      startDuration:1300, minDuration:920, durationMul:1.05, smashReachMul:0.55, lobWeak:false, tellMs:0 },
+    { id:"retriever", name:"ねばりの守護神", desc:"遅いがなんでも拾う。角を狙って走らせろ", style:"steady",
+      speed:0.076, reactionMs:120, reach:17, errorRate:0.04, smartChance:0.20,
+      startDuration:1200, minDuration:840, durationMul:1.10, smashReachMul:0.35, lobWeak:false, tellMs:0 },
+    { id:"rusher", name:"ネットラッシャー", desc:"ネットに詰めてくる。頭上をロブ(▲)で抜け", style:"netrush",
+      speed:0.070, reactionMs:90, reach:20, errorRate:0.08, smartChance:0.45,
+      startDuration:1100, minDuration:780, durationMul:0.88, smashReachMul:0.45, lobWeak:true, tellMs:0 },
+    { id:"power", name:"パワーヒッター", desc:"赤く光ったら強打が来る。落ち着いて合わせろ", style:"power",
+      speed:0.064, reactionMs:140, reach:16, errorRate:0.12, smartChance:0.50,
+      startDuration:1050, minDuration:730, durationMul:0.80, smashReachMul:0.50, lobWeak:false, tellMs:180 },
+    { id:"champion", name:"チャンピオン", desc:"死角なし。4本に1本スマッシュを打ってくる", style:"allround",
+      speed:0.078, reactionMs:100, reach:17, errorRate:0.05, smartChance:0.60,
+      startDuration:1000, minDuration:680, durationMul:0.85, smashReachMul:0.30, lobWeak:false, tellMs:150, smashEvery:4 },
+  ];
+  function findOpponent(id){ return OPPONENTS.find(function(o){ return o.id === id; }) || OPPONENTS[0]; }
   function canReach(receiverX, ballX, radius){
     return Math.abs(receiverX - ballX) <= radius;
   }
@@ -495,17 +607,26 @@
      8. Fx — 演出(ロジック非依存)
      ========================================================= */
   const Fx = (function(){
-    const LABEL = { perfect:"PERFECT!", good:"GOOD", early:"EARLY", late:"LATE", whiff:"空振り" };
-    function judgePop(kind, cssX){
+    const LABEL = { perfect:"PERFECT!", good:"GOOD", early:"EARLY", late:"LATE", whiff:"空振り",
+      out:"OUT!", smash:"SMASH!", pass:"抜いた!", smashwin:"決まった!" };
+    const CLS = { early:"ok", late:"ok", pass:"good", smashwin:"smash" };
+    // where: "bottom"(自分側) | "top"(相手側)
+    function judgePop(kind, cssX, where){
       const court = $("court");
       const el = document.createElement("div");
-      const cls = (kind === "early" || kind === "late") ? "ok" : kind;
-      el.className = "judgePop " + cls;
+      el.className = "judgePop " + (CLS[kind] || kind);
       el.textContent = LABEL[kind] || kind;
       el.style.left = cssX + "%";
-      el.style.bottom = "26%";
+      if (where === "top") el.style.top = "18%"; else el.style.bottom = "26%";
       court.appendChild(el);
       setTimeout(function(){ if (el.parentNode) el.parentNode.removeChild(el); }, 700);
+    }
+    function shake(){
+      const c = $("court");
+      c.classList.remove("shake");
+      void c.offsetWidth;
+      c.classList.add("shake");
+      setTimeout(function(){ c.classList.remove("shake"); }, 300);
     }
     function litDir(dir){
       const el = document.querySelector('.hintDir[data-dir="' + dir + '"]');
@@ -527,7 +648,7 @@
       wrap.classList.add(kind);
       setTimeout(function(){ wrap.classList.remove(kind); }, 180);
     }
-    return { judgePop, litDir, flash, bounce };
+    return { judgePop, litDir, flash, bounce, shake };
   })();
 
   /* =========================================================
@@ -543,8 +664,17 @@
     const SWIPE_WINDOW_MS = 160;  // スイング後、コースを受け付ける時間
 
     let phase = "serve";
-    let opp = DEFAULT_OPPONENT;
+    let opp = OPPONENTS[0];
     let exchanges = 0;            // このポイントで自分が返した回数(球速の基準)
+    let meta = { mode:"free", stage:null };
+    let onEnd = null;             // モード側のコールバック(結果画面のボタンを描く)
+    let gauge = 0;                // 必殺ゲージ 0〜100(ポイント間で持ち越し、失点で-20)
+    let opponentHits = 0;         // 相手が返した回数(チャンピオンのスマッシュ周期用)
+    let tell = null;              // 相手の予備動作 { dir:"L"|"R", charge:bool }
+    let atNet = false;            // ネットラッシャーが前に出ているか
+    const stats = { deuceSeen:false, playerMisses:0, smashPoints:0, lobPoints:0, outs:0 };
+    const OPPONENT_TOP_NET = 22;  // ネット際に出た時の相手の位置(top %)
+    const OPPONENT_Y_NET = 27;    // その時のボールの打点(%)
 
     const SWING_MS = 240;         // スイングポーズを見せる時間
     const player = { x: 50, targetX: 50, min: Court.X_MIN, max: Court.X_MAX, running: null, facing: "left", cooldownUntil: 0 };
@@ -593,6 +723,24 @@
       clearTimeout(autoMissTimer); clearTimeout(arriveTimer); clearTimeout(hitstopTimer);
     }
     function paintRally(){ $("rallyCount").textContent = String(rally.count); }
+    function paintGauge(){
+      $("gaugeFill").style.width = gauge + "%";
+      $("gauge").classList.toggle("full", gauge >= 100);
+      $("gaugeLabel").textContent = gauge >= 100 ? "SMASH READY" : "SMASH";
+    }
+    function opponentY(){ return atNet ? OPPONENT_Y_NET : Court.OPPONENT_Y; }
+    function setNet(on){
+      atNet = on;
+      $("opponentWrap").style.top = on ? (OPPONENT_TOP_NET + "%") : "0.5%";
+    }
+    function applyTell(t){
+      tell = t;
+      const w = $("opponentWrap");
+      w.dataset.tell = t ? (t.dir + (t.charge ? "!" : "")) : "";
+      w.querySelector(".body").style.setProperty("--lean", t ? (t.dir === "L" ? "-12deg" : "12deg") : "0deg");
+      w.classList.toggle("charge", !!(t && t.charge));
+      if (t && t.charge) Sfx.charge();
+    }
 
     /* ---- 描画 ---- */
     function renderCourt(now){
@@ -605,7 +753,7 @@
       e.hitZone.classList.toggle("ready", ready);
       e.ball.classList.toggle("ready", ready);
 
-      if (phase === "ballToPlayer" || phase === "ballToOpponent" || phase === "hitstop") {
+      if (phase === "ballToPlayer" || phase === "ballToOpponent" || phase === "hitstop" || phase === "ballOut") {
         if (phase !== "hitstop") {
           const t = clamp((now - ball.flightStart) / ball.flightDuration, 0, 1);
           ball.x = lerp(ball.fromX, ball.targetX, t);
@@ -631,7 +779,7 @@
         if (now >= ball.flightStart + AutoMover.REACTION_MS) {
           dir = AutoMover.step(player, player.targetX, AutoMover.SPEED, dt);
         }
-      } else if (phase === "ballToOpponent") {
+      } else if (phase === "ballToOpponent" || phase === "returning" || phase === "ballOut") {
         player.targetX = 50;
         dir = AutoMover.step(player, 50, AutoMover.RECOVER_SPEED, dt);
       }
@@ -643,21 +791,25 @@
     function updateOpponent(now, dt){
       let dir = null;
       if (phase === "ballToOpponent" && now >= opponentReactAt) {
-        dir = AutoMover.step(opponent, ball.targetX, opp.speed, dt);
+        // ネット際にいる時のロブは頭上を越えていくので、後ろへはほとんど下がれない
+        const lobbed = atNet && opp.lobWeak && lastShot && lastShot.course === "lob";
+        dir = AutoMover.step(opponent, ball.targetX, opp.speed * (lobbed ? 0.12 : 1), dt);
       }
       opponent.running = dir;
       if (dir) opponent.facing = dir;
     }
 
     /* ---- ラリーの進行 ---- */
-    function launchToPlayer(targetX, duration, arc){
+    function launchToPlayer(targetX, duration, arc, opts){
       phase = "ballToPlayer";
-      ball.fromX = opponent.x; ball.fromY = Court.OPPONENT_Y;
+      ball.fromX = opponent.x; ball.fromY = opponentY();
       ball.targetX = clamp(targetX, 4, 96);
       ball.targetY = Court.PLAYER_Y;
       ball.flightStart = performance.now();
       ball.flightDuration = duration;
       ball.arc = arc || 42;
+      ball.smash = !!(opts && opts.smash);
+      if (ball.smash) { Fx.judgePop("smash", Court.toCssX(opponent.x), "top"); Sfx.smash(); }
       player.targetX = clamp(ball.targetX - AutoMover.STANCE_OFFSET, player.min, player.max);
       $("ball").classList.remove("hidden");
       clearTimeout(autoMissTimer);
@@ -677,30 +829,73 @@
       phase = "ballToOpponent";
       ball.fromX = ball.x; ball.fromY = Court.PLAYER_Y;
       ball.targetX = shot.targetX;
-      ball.targetY = Court.OPPONENT_Y;
+      ball.targetY = opponentY();
       ball.flightStart = performance.now();
       ball.flightDuration = shot.duration;
       ball.arc = shot.arc;
-      opponentReactAt = ball.flightStart + opp.reactionMs;
+      ball.smash = !!shot.smash;
+      opponentReactAt = ball.flightStart + opp.reactionMs + (shot.smash ? 90 : 0);
       clearTimeout(arriveTimer);
       arriveTimer = setTimeout(opponentArrives, shot.duration);
     }
 
+    /* 相手にボールが届いた瞬間。個性(OPPONENTS の値)はすべてここで効く */
     function opponentArrives(){
       if (phase !== "ballToOpponent") return;
-      const reached = canReach(opponent.x, ball.targetX, opp.reach);
-      if (!reached) { pointFor("player"); return; }
+      const shot = lastShot || {};
+      let reach = opp.reach;
+      if (shot.smash) reach *= opp.smashReachMul;                    // 必殺スマッシュは届きにくい
+      if (shot.course === "lob" && opp.lobWeak && atNet) reach *= 0.25; // ネット際の相手はロブに弱い
+      if (!canReach(opponent.x, ball.targetX, reach)) {
+        if (shot.smash) stats.smashPoints += 1;
+        if (shot.course === "lob") stats.lobPoints += 1;
+        Fx.judgePop(shot.smash ? "smashwin" : "pass", Court.toCssX(ball.targetX), "top");
+        pointFor("player");
+        return;
+      }
       Fx.bounce(el().opponent, "hit");
       opponentSwingUntil = performance.now() + SWING_MS;
+      opponentHits += 1;
       Sfx.bounce();
+      phase = "returning"; // 相手が構えている間は入力を受け付けない
+      ball.x = ball.targetX; ball.y = opponentY();
+
+      // 相手のミス(アウト): 個性が「見て分かる」失点
+      if (rand() < opp.errorRate) {
+        stats.outs += 1;
+        const outX = opponent.x < 50 ? 106 : -6;
+        const dur = Math.max(opp.minDuration * 0.7, rallyBase() * opp.durationMul);
+        arriveTimer = setTimeout(function(){ launchOut(outX, dur); }, RETURN_PAUSE);
+        return;
+      }
+
       lastSmartReturn = rand() < opp.smartChance;
-      const targetX = lastSmartReturn ? aimAwayFromPlayer(player.x) : aimFromContact(opponent.x, ball.targetX);
-      const duration = Math.max(opp.minDuration * 0.7, rallyBase() * opp.durationMul);
-      phase = "returning"; // 相手が構えている間(RETURN_PAUSE)は入力を受け付けない
-      ball.x = ball.targetX; ball.y = Court.OPPONENT_Y;
+      let targetX = lastSmartReturn ? aimAwayFromPlayer(player.x) : aimFromContact(opponent.x, ball.targetX);
+      if (opp.style === "power") targetX = lerp(targetX, targetX < 50 ? 8 : 92, 0.6); // 角へさらに寄せる
+      const isSmash = !!opp.smashEvery && (opponentHits % opp.smashEvery === 0);
+      const duration = Math.max(opp.minDuration * 0.7, rallyBase() * opp.durationMul) * (isSmash ? 0.65 : 1);
+      if (opp.style === "netrush" && !atNet && rand() < 0.6) setNet(true); // 返球後に前へ出る
+
+      const charge = isSmash || (opp.style === "power" && opp.tellMs > 0 && rand() < 0.5);
+      applyTell({ dir: targetX < 50 ? "L" : "R", charge: charge });
+      const pause = RETURN_PAUSE + (charge ? opp.tellMs : 0);
       arriveTimer = setTimeout(function(){
-        launchToPlayer(targetX, duration, 42);
-      }, RETURN_PAUSE);
+        applyTell(null);
+        launchToPlayer(targetX, charge ? duration * 0.85 : duration, isSmash ? 18 : 42, { smash: isSmash });
+      }, pause);
+    }
+
+    /* 相手のアウト: サイドラインの外へ飛んでいき、着地でプレイヤーの得点 */
+    function launchOut(targetX, duration){
+      phase = "ballOut";
+      ball.fromX = opponent.x; ball.fromY = opponentY();
+      ball.targetX = targetX; ball.targetY = Court.PLAYER_Y;
+      ball.flightStart = performance.now(); ball.flightDuration = duration; ball.arc = 42; ball.smash = false;
+      arriveTimer = setTimeout(function(){
+        if (phase !== "ballOut") return;
+        Fx.judgePop("out", Court.toCssX(clamp(targetX, 2, 98)));
+        pointFor("player");
+      }, duration);
     }
 
     /** タップ/スペース。ballToPlayer の間だけ意味を持つ。戻り値は判定ティア(or null) */
@@ -736,18 +931,27 @@
       if (tier === "perfect") rally.perfects += 1;
       const course = forcedCourse || "straight";
       forcedCourse = null;
-      pendingShot = ShotSystem.resolve(tier, course, shotCtx());
-      lastShot = { tier: tier, deltaMs: delta, course: course, targetX: pendingShot.targetX,
+      // ゲージ満タンなら perfect/good が自動でスマッシュになる(追加入力なし)
+      const smash = gauge >= 100 && (tier === "perfect" || tier === "good");
+      pendingShot = ShotSystem.resolve(tier, course, shotCtx(smash));
+      if (smash) gauge = 0; else gauge = Math.min(100, gauge + pendingShot.gaugeGain);
+      paintGauge();
+      lastShot = { tier: tier, deltaMs: delta, course: course, smash: smash, targetX: pendingShot.targetX,
         duration: pendingShot.duration, arc: pendingShot.arc };
       Fx.flash("good");
       Fx.bounce(el().player, "hit");
-      Fx.judgePop(tier === "ok" ? (delta < 0 ? "early" : "late") : tier, cssX);
-      Sfx.hit(tier);
+      Fx.judgePop(smash ? "smash" : (tier === "ok" ? (delta < 0 ? "early" : "late") : tier), cssX);
+      if (smash) { Sfx.smash(); Fx.shake(); } else Sfx.hit(tier);
       hitstopTimer = setTimeout(fire, HITSTOP_MS);
       return tier;
     }
-    function shotCtx(){
-      return { rallyBase: rallyBase(), minDuration: opp.minDuration, opponentX: opponent.x };
+    function shotCtx(smash){
+      return { rallyBase: rallyBase(), minDuration: opp.minDuration, opponentX: opponent.x, smash: !!smash };
+    }
+    /** ロブは必殺スマッシュにしない(高く遅い球なので)。その場合ゲージは返す */
+    function keepSmash(smash, course){
+      if (smash && course === "lob") { gauge = 100; paintGauge(); return false; }
+      return smash;
     }
     function fire(){
       if (phase !== "hitstop" || !pendingShot) return;
@@ -762,17 +966,19 @@
       const now = performance.now();
       if (now > courseWindowUntil) return false;
       if (phase === "hitstop" && pendingShot) {
-        pendingShot = ShotSystem.resolve(pendingShot.tier, course, shotCtx());
-        lastShot.course = course; lastShot.targetX = pendingShot.targetX;
+        const smash = keepSmash(pendingShot.smash, course);
+        pendingShot = ShotSystem.resolve(pendingShot.tier, course, shotCtx(smash));
+        lastShot.course = course; lastShot.smash = smash; lastShot.targetX = pendingShot.targetX;
         lastShot.duration = pendingShot.duration; lastShot.arc = pendingShot.arc;
         Fx.litDir(course);
         return true;
       }
       if (phase === "ballToOpponent" && lastShot && lastShot.tier !== "whiff") {
         // 発射直後(飛行10%未満)なら飛行中の球の行き先を差し替える
-        const shot = ShotSystem.resolve(lastShot.tier, course, shotCtx());
-        ball.targetX = shot.targetX; ball.flightDuration = shot.duration; ball.arc = shot.arc;
-        lastShot.course = course; lastShot.targetX = shot.targetX;
+        const smash = keepSmash(lastShot.smash, course);
+        const shot = ShotSystem.resolve(lastShot.tier, course, shotCtx(smash));
+        ball.targetX = shot.targetX; ball.flightDuration = shot.duration; ball.arc = shot.arc; ball.smash = smash;
+        lastShot.course = course; lastShot.smash = smash; lastShot.targetX = shot.targetX;
         lastShot.duration = shot.duration; lastShot.arc = shot.arc;
         clearTimeout(arriveTimer);
         arriveTimer = setTimeout(opponentArrives, Math.max(0, ball.flightStart + shot.duration - now));
@@ -788,6 +994,7 @@
       clearTimers();
       Fx.flash("bad");
       Fx.bounce(el().player, "miss");
+      stats.playerMisses += 1;
       lastShot = { tier:"miss", deltaMs:null, course:null, targetX:null, duration:null, arc:null, reason: reason };
       pointFor("opponent");
     }
@@ -795,12 +1002,15 @@
     function pointFor(who){
       phase = "pointOver";
       clearTimers();
+      applyTell(null);
+      setNet(false);
       score[who] += 1;
       lastLabels = scoreLabels(score.player, score.opponent);
+      if (lastLabels.deuce) stats.deuceSeen = true;
       $("playerScore").textContent = lastLabels.forLabel;
       $("opponentScore").textContent = lastLabels.againstLabel;
       $("deuceNote").hidden = !lastLabels.deuce;
-      if (who === "player") Sfx.pointWin(); else Sfx.pointLose();
+      if (who === "player") Sfx.pointWin(); else { Sfx.pointLose(); gauge = Math.max(0, gauge - 20); paintGauge(); }
       if (lastLabels.gameOver) {
         phase = "gameOver";
         setTimeout(finish, 600);
@@ -812,23 +1022,34 @@
     function finish(){
       const win = lastLabels.winner === "for";
       $("rankVal").textContent = win ? "WIN" : "LOSE";
+      $("resultSub").textContent = "vs " + opp.name;
       $("resultPlayer").textContent = String(score.player);
       $("resultOpponent").textContent = String(score.opponent);
       $("resultRally").textContent = String(rally.longest);
       $("resultPerfect").textContent = String(rally.perfects);
+      $("resultBtns").innerHTML = "";
       if (win) Sfx.win(); else Sfx.lose();
       show("result");
       stopLoop();
+      const result = { win: win, opponentId: opp.id, pointsPlayer: score.player, pointsOpponent: score.opponent,
+        longestRally: rally.longest, perfects: rally.perfects, deuceSeen: stats.deuceSeen,
+        playerMisses: stats.playerMisses, smashPoints: stats.smashPoints, lobPoints: stats.lobPoints, outs: stats.outs };
+      if (typeof onEnd === "function") onEnd(result);
     }
 
     function begin(opts){
       opts = opts || {};
-      opp = opts.opponent || DEFAULT_OPPONENT;
+      opp = opts.opponent || OPPONENTS[0];
+      meta = opts.meta || { mode:"free", stage:null };
+      onEnd = opts.onEnd || null;
       clearTimers();
       score.player = 0; score.opponent = 0;
       lastLabels = scoreLabels(0, 0);
       lastSmartReturn = false; lastShot = null; pendingShot = null; forcedCourse = null;
-      exchanges = 0;
+      exchanges = 0; opponentHits = 0; gauge = 0; paintGauge();
+      stats.deuceSeen = false; stats.playerMisses = 0; stats.smashPoints = 0; stats.lobPoints = 0; stats.outs = 0;
+      applyTell(null); setNet(false);
+      $("vsName").textContent = "vs " + opp.name;
       rally.count = 0; rally.longest = 0; rally.perfects = 0; paintRally();
       player.x = 50; player.targetX = 50; player.cooldownUntil = 0; player.running = null; player.facing = "left";
       opponent.x = 50; opponent.running = null; opponent.facing = "left";
@@ -866,19 +1087,22 @@
     function debugState(){
       return {
         phase: phase,
-        mode: "match",
+        mode: meta.mode, stage: meta.stage,
         opponentId: opp.id,
+        gauge: gauge,
         ball: { x: ball.x, y: ball.y, fromX: ball.fromX, fromY: ball.fromY,
           targetX: ball.targetX, targetY: ball.targetY,
           flightStart: ball.flightStart, flightDuration: ball.flightDuration,
-          arrivalAt: ball.flightStart + ball.flightDuration, arc: ball.arc },
+          arrivalAt: ball.flightStart + ball.flightDuration, arc: ball.arc, smash: !!ball.smash },
+        stats: { deuceSeen: stats.deuceSeen, playerMisses: stats.playerMisses, smashPoints: stats.smashPoints,
+          lobPoints: stats.lobPoints, outs: stats.outs, opponentHits: opponentHits },
         player: { x: player.x, targetX: player.targetX, min: player.min, max: player.max,
           running: player.running, facing: player.facing, cooldownUntil: player.cooldownUntil },
         visual: { playerPose: vis.player.pose, playerFlip: vis.player.flip,
           opponentPose: vis.opponent.pose, opponentFlip: vis.opponent.flip,
           playerSrc: $("playerImg").getAttribute("src"), ready: isHittableNow(performance.now()) },
         opponent: { id: opp.id, x: opponent.x, targetX: ball.targetX, smartReturn: lastSmartReturn,
-          running: opponent.running, reach: opp.reach },
+          running: opponent.running, reach: opp.reach, tell: tell, atNet: atNet },
         lastShot: lastShot,
         pendingCourse: pendingShot ? pendingShot.course : null,
         hitstopUntil: hitstopUntil, courseWindowUntil: courseWindowUntil, swingAt: swingAt,
@@ -975,11 +1199,100 @@
   })();
 
   /* =========================================================
-     11. 画面の行き来
+     11. Modes — トーナメント(勝ち抜き)。進行は localStorage に保存する。
+        TennisGame はモードを知らず、begin({opponent, meta, onEnd}) の onEnd で
+        結果画面のボタンをモード側が描く。
      ========================================================= */
-  $("startBtn").addEventListener("click", function(){ Sfx.unlock(); TennisGame.begin(); });
-  $("retryBtn").addEventListener("click", function(){ Sfx.unlock(); TennisGame.begin(); });
-  $("titleBtn").addEventListener("click", function(){ show("title"); });
+  const Modes = (function(){
+    const T_KEY = "tennis-game:tournament";
+    function loadT(){
+      try {
+        const r = JSON.parse(localStorage.getItem(T_KEY) || "null");
+        if (r && r.v === 1) return r;
+      } catch (e) {}
+      return { v:1, bestStage:0, cleared:false, beaten:{}, lastStage:0 };
+    }
+    function saveT(t){ try { localStorage.setItem(T_KEY, JSON.stringify(t)); } catch (e) {} }
+    function resetT(){ try { localStorage.removeItem(T_KEY); } catch (e) {} }
+    function btn(cls, label, fn){
+      const b = document.createElement("button");
+      b.className = cls; b.textContent = label;
+      b.addEventListener("click", fn);
+      return b;
+    }
+    let current = null; // { mode, stage }
+
+    const Tournament = {
+      // force: テスト用。未到達の相手にも挑める
+      start: function(stage, force){
+        const t = loadT();
+        const maxStage = force ? OPPONENTS.length - 1 : Math.min(t.bestStage, OPPONENTS.length - 1);
+        stage = clamp(stage | 0, 0, maxStage);
+        t.lastStage = stage; saveT(t);
+        current = { mode:"tournament", stage: stage };
+        Sfx.unlock();
+        TennisGame.begin({ opponent: OPPONENTS[stage], meta: current, onEnd: Tournament.onEnd });
+      },
+      onEnd: function(res){
+        const t = loadT();
+        const stage = current.stage;
+        const isLast = stage >= OPPONENTS.length - 1;
+        if (res.win) {
+          t.beaten[OPPONENTS[stage].id] = (t.beaten[OPPONENTS[stage].id] || 0) + 1;
+          if (!isLast) t.bestStage = Math.max(t.bestStage, stage + 1);
+          else t.cleared = true;
+          saveT(t);
+        }
+        $("rankVal").textContent = res.win ? (isLast ? "優勝！" : "WIN") : "LOSE";
+        const box = $("resultBtns");
+        box.innerHTML = "";
+        if (res.win && !isLast) {
+          box.appendChild(btn("bigBtn", "次の相手: " + OPPONENTS[stage + 1].name, function(){ Tournament.start(stage + 1); }));
+        } else {
+          box.appendChild(btn("bigBtn", res.win ? "もう一度" : "再挑戦", function(){ Tournament.start(stage); }));
+        }
+        box.appendChild(btn("ghostBtn", "対戦相手一覧へ", function(){ paintLadder(); show("ladder"); }));
+      },
+    };
+
+    function paintLadder(){
+      const t = loadT();
+      const box = $("ladderList");
+      box.innerHTML = "";
+      OPPONENTS.forEach(function(o, i){
+        const locked = i > t.bestStage;
+        const beatenN = t.beaten[o.id] || 0;
+        const row = document.createElement("div");
+        row.className = "ladderRow" + (locked ? " locked" : "") + (beatenN ? " beaten" : "");
+        row.dataset.stage = String(i);
+        const img = document.createElement("img");
+        img.src = poseFile(opponentChar(selectedChar).id, "idle"); img.alt = "";
+        const info = document.createElement("div");
+        info.className = "info";
+        info.innerHTML = '<div class="name">' + (i + 1) + '. ' + (locked ? "???" : o.name) + '</div>' +
+          '<div class="desc">' + (locked ? "前の相手に勝つと挑戦できる" : o.desc) + '</div>' +
+          (beatenN ? '<div class="state">勝利 ' + beatenN + '回</div>' : "");
+        row.appendChild(img); row.appendChild(info);
+        if (!locked) row.appendChild(btn("fightBtn", "挑戦", function(){ Tournament.start(i); }));
+        box.appendChild(row);
+      });
+    }
+    function paintModes(){
+      const t = loadT();
+      $("modeTournamentBest").textContent = t.cleared ? "優勝済み！ 全員に勝った"
+        : (t.bestStage > 0 ? "到達: " + (t.bestStage + 1) + "人目 / " + OPPONENTS.length + "人" : "");
+    }
+    return { Tournament, paintLadder, paintModes, loadTournament: loadT, resetTournament: resetT,
+      current: function(){ return current; } };
+  })();
+
+  /* =========================================================
+     12. 画面の行き来
+     ========================================================= */
+  $("startBtn").addEventListener("click", function(){ Sfx.unlock(); Modes.paintModes(); show("modes"); });
+  $("modeTournament").addEventListener("click", function(){ Modes.paintLadder(); show("ladder"); });
+  $("modesBack").addEventListener("click", function(){ show("title"); });
+  $("ladderBack").addEventListener("click", function(){ Modes.paintModes(); show("modes"); });
 
   paintCharRow();
   show("title");
@@ -988,6 +1301,12 @@
   window.__tennis = {
     begin: TennisGame.begin, swing: TennisGame.swing, applyCourse: TennisGame.applyCourse,
     forceCourse: TennisGame.forceCourse, debugState: TennisGame.debugState,
+    startMode: function(mode, opts){
+      opts = opts || {};
+      if (mode === "tournament") Modes.Tournament.start(opts.stage || 0, !!opts.force);
+    },
+    tournament: { load: Modes.loadTournament, reset: Modes.resetTournament },
+    opponents: OPPONENTS,
     setRng: setRng, scoreLabels: scoreLabels, sfx: Sfx,
   };
 })();
