@@ -23,14 +23,20 @@
   h1{ font-size:28px; margin:0; letter-spacing:.02em; }
   .sub{ color:#9aa4c4; font-size:13px; margin:0; }
 
-  .charRow{ display:flex; gap:16px; }
+  /* 10人ぶんが縦に収まるよう、5列のグリッドにする(狭い画面では4列) */
+  .charRow{ display:grid; grid-template-columns:repeat(5, 1fr); gap:8px;
+    width:100%; max-width:420px; }
+  @media (max-width:380px){ .charRow{ grid-template-columns:repeat(4, 1fr); } }
   .charBtn{ background:rgba(255,255,255,.06); border:2px solid rgba(255,255,255,.14);
-    border-radius:18px; padding:14px; display:flex; flex-direction:column; align-items:center;
-    gap:8px; cursor:pointer; color:#fff; width:130px; }
-  .charBtn img{ width:88px; height:auto; image-rendering:-webkit-optimize-contrast; }
-  .charBtn.selected{ border-color:var(--accent); box-shadow:0 0 22px rgba(56,189,248,.45);
+    border-radius:14px; padding:6px 2px 5px; display:flex; flex-direction:column; align-items:center;
+    gap:2px; cursor:pointer; color:#fff; }
+  .charBtn .charArt{ display:block; width:100%; max-width:56px; aspect-ratio:1; position:relative; }
+  .charBtn .charArt img, .charBtn .charArt svg{ width:100%; height:100%; object-fit:contain; display:block;
+    image-rendering:-webkit-optimize-contrast; }
+  .charBtn .svgRacket{ display:none; }
+  .charBtn.selected{ border-color:var(--accent); box-shadow:0 0 18px rgba(56,189,248,.4);
     background:rgba(56,189,248,.12); }
-  .charBtn .cname{ font-size:13px; font-weight:700; }
+  .charBtn .cname{ font-size:10px; font-weight:700; line-height:1.2; word-break:keep-all; }
 
   .bigBtn{ padding:16px 40px; border-radius:16px; border:none; font-size:18px; font-weight:800;
     color:#0b1020; background:linear-gradient(135deg,var(--accent),var(--accent2));
@@ -55,13 +61,12 @@
   .ladderList{ display:flex; flex-direction:column-reverse; gap:8px; width:100%; max-width:360px; }
   .ladderRow{ display:flex; align-items:center; gap:12px; padding:10px 12px; border-radius:14px;
     background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); text-align:left; }
-  .ladderRow img{ width:44px; height:44px; object-fit:contain; flex:none; }
   .ladderRow .info{ flex:1; min-width:0; }
   .ladderRow .name{ font-weight:800; font-size:14px; }
   .ladderRow .desc{ font-size:11px; color:#9aa4c4; }
   .ladderRow .state{ font-size:11px; color:#fde68a; }
   .ladderRow.locked{ opacity:.45; }
-  .ladderRow.locked img{ filter:brightness(0) opacity(.5); }
+  .ladderRow.locked .ladderArt{ filter:brightness(0) opacity(.5); }
   .ladderRow .fightBtn{ padding:8px 14px; border-radius:10px; border:none; font-weight:800;
     color:#0b1020; background:linear-gradient(135deg,var(--accent),var(--accent2)); cursor:pointer; flex:none; }
   .ladderRow.locked .fightBtn{ display:none; }
@@ -196,7 +201,7 @@
   .charWrap .body{ position:relative; transform: scaleX(var(--flip, 1)) rotate(var(--lean, 0deg));
     transition: transform .18s; }
   /* テル(相手の予備動作): 狙う側へ体を傾ける(--lean)、強打の前は縮んで赤い輪(.charge) */
-  .charWrap.charge img{ animation: chargePulse .18s ease-in-out infinite alternate;
+  .charWrap.charge img, .charWrap.charge .body > svg{ animation: chargePulse .18s ease-in-out infinite alternate;
     filter: drop-shadow(0 0 10px rgba(248,113,113,.95)); }
   @keyframes chargePulse{ from{ transform:scale(.9); } to{ transform:scale(.97); } }
   /* ネットラッシャーの前進。相手の打点(top)がネット際まで下りる */
@@ -205,18 +210,27 @@
   @keyframes shake{ 0%,100%{ transform:translate(0,0); } 20%{ transform:translate(-4px,2px); }
     40%{ transform:translate(4px,-2px); } 60%{ transform:translate(-3px,-2px); } 80%{ transform:translate(3px,2px); } }
   @media (prefers-reduced-motion: reduce){ .court.shake{ animation:none; } }
-  .charWrap img{ width:96px; height:auto; display:block; transition: transform .12s; }
-  .charWrap[data-pose="run"] img{ animation: runBob .22s ease-in-out infinite alternate; }
+  .charWrap img, .charWrap .body > svg{ width:96px; height:auto; display:block; transition: transform .12s; }
+  .charWrap[data-pose="run"] img, .charWrap[data-pose="run"] .body > svg{
+    animation: runBob .22s ease-in-out infinite alternate; }
   @keyframes runBob{ from{ margin-top:0; } to{ margin-top:-6px; } }
-  .charWrap.hit img{ transform: scale(1.12) rotate(-4deg); animation:none; }
-  .charWrap.miss img{ transform: scale(.92) rotate(8deg); filter:grayscale(.5); animation:none; }
-  .charWrap.whiff img{ transform: rotate(-14deg); animation:none; }
+  .charWrap.hit img, .charWrap.hit .body > svg{ transform: scale(1.12) rotate(-4deg); animation:none; }
+  .charWrap.miss img, .charWrap.miss .body > svg{ transform: scale(.92) rotate(8deg); filter:grayscale(.5); animation:none; }
+  .charWrap.whiff img, .charWrap.whiff .body > svg{ transform: rotate(-14deg); animation:none; }
+
+  /* SVGで描いたキャラは絵にラケットが無いので、別途ラケットを重ねる
+     (PNGのキャラは絵に描かれているので renderCharInto 側で付けない) */
+  .charWrap .svgRacket{ position:absolute; width:26px; height:44px; right:-6px; bottom:24%;
+    transform-origin:50% 92%; transform:rotate(26deg); transition:transform .16s cubic-bezier(.2,1.4,.4,1);
+    pointer-events:none; }
+  .charWrap .svgRacket svg{ width:100%; height:100%; display:block; }
+  .charWrap[data-pose="swing"] .svgRacket{ transform:rotate(-92deg); }
 
   .playerWrap{ bottom:0.5%; transform:translateX(-50%); }
-  .playerWrap img{ width:108px; }
+  .playerWrap img, .playerWrap .body > svg{ width:108px; }
 
   .opponentWrap{ top:0.5%; transform:translateX(-50%); }
-  .opponentWrap img{ width:90px; }
+  .opponentWrap img, .opponentWrap .body > svg{ width:90px; }
 
   /* 判定ポップ(PERFECT! / GOOD / EARLY / LATE / 空振り) */
   .judgePop{ position:absolute; z-index:7; transform:translate(-50%,0); font-weight:900; font-size:18px;
@@ -351,13 +365,13 @@
     <div class="court" id="court">
       <div class="netLine"></div>
       <div class="opponentWrap charWrap" id="opponentWrap">
-        <div class="body"><img id="opponentImg" alt=""></div>
+        <div class="body"></div>
       </div>
       <div class="hitZone" id="hitZone"></div>
       <div class="ballShadow" id="ballShadow"></div>
       <div class="ball" id="ball"></div>
       <div class="playerWrap charWrap" id="playerWrap">
-        <div class="body"><img id="playerImg" alt=""></div>
+        <div class="body"></div>
       </div>
       <div class="flash" id="flash"></div>
     </div>
@@ -817,33 +831,131 @@
   })();
 
   /* =========================================================
-     4. Characters — キャラクター選択とポーズ画像
-        idle/run/swing の3ポーズ(fal.ai生成、320px角の透過PNG)。素材は左向きに
-        描かれているので、右を向く時は .body の --flip で反転して兼用する。
-        旧素材(art/funifuni.png 等)はポーズ画像が読めない時のフォールバック。
+     4. Characters — 10人のマスコットと、その見た目
+        ふにふに/ことこと は idle/run/swing の3ポーズ画像(fal.ai生成の透過PNG)を持つ。
+        あとの8人はまだ画像が無いので、体色・差し色・耳の形だけを持たせて
+        SVG(MochiArt)でその場で描く。画像が用意できたら CHARACTERS に
+        idle/run/swing のパスを足すだけで自動的にそちらが使われる。
+        素材は左向きに描かれているので、右を向く時は .body の --flip で反転する。
      ========================================================= */
   const CHARACTERS = [
-    { id:"funifuni", name:"ふにふに", file:"art/funifuni.png",
+    { id:"funifuni", name:"ふにふに", body:"#fdfaf3", accent:"#8ec5e8", ear:"none", file:"art/funifuni.png",
       idle:"art/funifuni-idle.png", run:"art/funifuni-run.png", swing:"art/funifuni-swing.png" },
-    { id:"kotokoto", name:"ことこと", file:"art/kotokoto.png",
-      idle:"art/kotokoto-idle.png", run:"art/kotokoto-run.png", swing:"art/kotokoto-swing.png" }
+    { id:"kotokoto", name:"ことこと", body:"#fdf6ea", accent:"#b9a7e0", ear:"cat", file:"art/kotokoto.png",
+      idle:"art/kotokoto-idle.png", run:"art/kotokoto-run.png", swing:"art/kotokoto-swing.png" },
+    { id:"mokomoko", name:"もこもこ", body:"#fbf3e2", accent:"#8fd9c0", ear:"sheep" },
+    { id:"petapeta",  name:"ぺたぺた", body:"#dfe7f2", accent:"#f79c8b", ear:"penguin" },
+    { id:"piyopiyo",  name:"ぴよぴよ", body:"#fde9a9", accent:"#f7a8c4", ear:"chick" },
+    { id:"pyonpyon",  name:"ぴょんぴょん", body:"#fdf7f7", accent:"#f6b89b", ear:"rabbit" },
+    { id:"nosonoso",  name:"のそのそ", body:"#e8cfae", accent:"#f2c14e", ear:"bear" },
+    { id:"kerokero",  name:"けろけろ", body:"#c8e6a8", accent:"#f5a05a", ear:"frog" },
+    { id:"patapata",  name:"ぱたぱた", body:"#ddd8ea", accent:"#6ec7c7", ear:"owl" },
+    { id:"chikuchiku",name:"ちくちく", body:"#f0dfc4", accent:"#ef8f7e", ear:"hedgehog" }
   ];
   const missingArt = {};   // 読めなかった画像パス → true(フォールバックに切り替える)
   CHARACTERS.forEach(function(c){
     ["idle","run","swing"].forEach(function(pose){
+      if (!c[pose]) return;
       const probe = new Image();
       probe.onerror = function(){ missingArt[c[pose]] = true; };
       probe.src = c[pose];
     });
   });
-  /** キャラID + ポーズ("idle"|"run"|"swing") → 画像パス。無ければ旧1枚絵 */
+  /** キャラID + ポーズ → 画像パス。ポーズ画像が無い/読めない時は null(SVGで描く) */
   function poseFile(charId, pose){
     const c = findChar(charId);
     const f = c[pose] || c.idle;
-    return missingArt[f] ? c.file : f;
+    if (!f) return null;
+    if (!missingArt[f]) return f;
+    return (c.file && !missingArt[c.file]) ? c.file : null;
   }
+
+  /* MochiArt — 画像を持たないキャラを、体色・差し色・耳の形からSVGで描く。
+     もちっとした輪郭・丸い目・ほお紅は共通で、耳と色だけで描き分ける。 */
+  const MochiArt = (function(){
+    // 耳(頭の左右)。体の上に重ねる
+    const EARS = {
+      none:  "",
+      cat:   '<path d="M30 34 L26 12 L48 24 Z" fill="{body}" stroke="{line}" stroke-width="3" stroke-linejoin="round"/>' +
+             '<path d="M90 34 L94 12 L72 24 Z" fill="{body}" stroke="{line}" stroke-width="3" stroke-linejoin="round"/>',
+      rabbit:'<ellipse cx="44" cy="18" rx="8" ry="22" fill="{body}" stroke="{line}" stroke-width="3"/>' +
+             '<ellipse cx="76" cy="18" rx="8" ry="22" fill="{body}" stroke="{line}" stroke-width="3"/>' +
+             '<ellipse cx="44" cy="20" rx="3.5" ry="14" fill="{blush}" opacity=".75"/>' +
+             '<ellipse cx="76" cy="20" rx="3.5" ry="14" fill="{blush}" opacity=".75"/>',
+      bear:  '<circle cx="34" cy="26" r="13" fill="{body}" stroke="{line}" stroke-width="3"/>' +
+             '<circle cx="86" cy="26" r="13" fill="{body}" stroke="{line}" stroke-width="3"/>',
+      sheep: '<circle cx="32" cy="30" r="11" fill="{body}" stroke="{line}" stroke-width="3"/>' +
+             '<circle cx="88" cy="30" r="11" fill="{body}" stroke="{line}" stroke-width="3"/>' +
+             '<circle cx="48" cy="20" r="12" fill="{body}" stroke="{line}" stroke-width="3"/>' +
+             '<circle cx="72" cy="20" r="12" fill="{body}" stroke="{line}" stroke-width="3"/>' +
+             '<circle cx="60" cy="16" r="13" fill="{body}" stroke="{line}" stroke-width="3"/>',
+      chick: '<path d="M60 16 L54 30 L66 30 Z" fill="{accent}" stroke="{line}" stroke-width="2.5" stroke-linejoin="round"/>',
+      penguin:'<path d="M40 30 Q60 16 80 30" fill="none" stroke="{line}" stroke-width="3" stroke-linecap="round"/>',
+      frog:  '<circle cx="38" cy="26" r="14" fill="{body}" stroke="{line}" stroke-width="3"/>' +
+             '<circle cx="82" cy="26" r="14" fill="{body}" stroke="{line}" stroke-width="3"/>' +
+             '<circle cx="38" cy="26" r="6" fill="#1f2937"/><circle cx="82" cy="26" r="6" fill="#1f2937"/>' +
+             '<circle cx="36" cy="24" r="2" fill="#fff"/><circle cx="80" cy="24" r="2" fill="#fff"/>',
+      owl:   '<path d="M34 30 L32 12 L52 24 Z" fill="{body}" stroke="{line}" stroke-width="3" stroke-linejoin="round"/>' +
+             '<path d="M86 30 L88 12 L68 24 Z" fill="{body}" stroke="{line}" stroke-width="3" stroke-linejoin="round"/>',
+      hedgehog:'<path d="M26 44 L18 24 L38 34 L36 14 L54 30 L60 10 L66 30 L84 14 L82 34 L102 24 L94 44 Z" ' +
+             'fill="{accent}" stroke="{line}" stroke-width="3" stroke-linejoin="round"/>',
+    };
+    // 目は「カエルだけ頭の上」なので、その分だけ顔を描き分ける
+    function face(c){
+      if (c.ear === "frog") {
+        return '<path d="M46 72 Q60 84 74 72" fill="none" stroke="{line}" stroke-width="3" stroke-linecap="round"/>';
+      }
+      return '<circle cx="45" cy="64" r="7" fill="#1f2937"/><circle cx="75" cy="64" r="7" fill="#1f2937"/>' +
+        '<circle cx="42.5" cy="61" r="2.4" fill="#fff"/><circle cx="72.5" cy="61" r="2.4" fill="#fff"/>' +
+        '<path d="M53 78 Q60 85 67 78" fill="none" stroke="{line}" stroke-width="3" stroke-linecap="round"/>';
+    }
+    function svg(charId){
+      const c = findChar(charId);
+      const tpl =
+        '<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
+          (EARS[c.ear] || "") +
+          // もち体
+          '<path d="M60 30 C88 30 104 50 104 74 C104 98 86 108 60 108 C34 108 16 98 16 74 C16 50 32 30 60 30 Z" ' +
+            'fill="{body}" stroke="{line}" stroke-width="3.5"/>' +
+          // ヘアバンド
+          '<path d="M23 51 C35 37 85 37 97 51" fill="none" stroke="{accent}" stroke-width="11" stroke-linecap="round"/>' +
+          '<path d="M23 51 C35 37 85 37 97 51" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity=".85"/>' +
+          // ほお紅
+          '<ellipse cx="30" cy="76" rx="8" ry="5.5" fill="{blush}" opacity=".85"/>' +
+          '<ellipse cx="90" cy="76" rx="8" ry="5.5" fill="{blush}" opacity=".85"/>' +
+          face(c) +
+          // 襟(差し色)
+          '<path d="M28 94 Q60 106 92 94" fill="none" stroke="{accent}" stroke-width="9" stroke-linecap="round"/>' +
+          '<path d="M28 94 Q60 106 92 94" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity=".8"/>' +
+        '</svg>';
+      return tpl.replace(/\{body\}/g, c.body).replace(/\{accent\}/g, c.accent)
+        .replace(/\{line\}/g, "#8a7358").replace(/\{blush\}/g, "#f7b6bd");
+    }
+    return { svg };
+  })();
+
   const CHAR_KEY = "tennis-game:character";
   let selectedChar = localStorage.getItem(CHAR_KEY) || CHARACTERS[0].id;
+  if (!CHARACTERS.some(function(c){ return c.id === selectedChar; })) selectedChar = CHARACTERS[0].id;
+
+  /** キャラの見た目(画像 or SVG)を要素に流し込む。ラケットは画像に描かれているので
+      SVGのキャラだけ、スイング時に別途ラケットを重ねる */
+  function renderCharInto(el, charId, pose){
+    const f = poseFile(charId, pose);
+    if (f) {
+      el.innerHTML = '<img src="' + f + '" alt="">';
+      el.dataset.art = "img";
+    } else {
+      el.innerHTML = MochiArt.svg(charId) + RACKET_SVG;
+      el.dataset.art = "svg";
+    }
+  }
+  const RACKET_SVG =
+    '<div class="svgRacket"><svg viewBox="0 0 30 52" aria-hidden="true">' +
+      '<ellipse cx="15" cy="16" rx="12" ry="15" fill="none" stroke="#e5e7eb" stroke-width="2.5"/>' +
+      '<path d="M6 16H24M15 3V29M9 8L21 24M21 8L9 24" stroke="#e5e7eb" stroke-width=".8" opacity=".6"/>' +
+      '<rect x="12" y="30" width="6" height="20" rx="3" fill="#b5773a"/>' +
+    '</svg></div>';
 
   function paintCharRow(){
     const box = $("charRow");
@@ -851,8 +963,13 @@
     CHARACTERS.forEach(function(c){
       const btn = document.createElement("button");
       btn.className = "charBtn" + (c.id === selectedChar ? " selected" : "");
-      btn.innerHTML = '<img src="' + poseFile(c.id, "idle") + '" alt="' + c.name + '">' +
-        '<span class="cname">' + c.name + '</span>';
+      btn.dataset.char = c.id;
+      const art = document.createElement("span");
+      art.className = "charArt";
+      renderCharInto(art, c.id, "idle");
+      const nm = document.createElement("span");
+      nm.className = "cname"; nm.textContent = c.name;
+      btn.appendChild(art); btn.appendChild(nm);
       btn.addEventListener("click", function(){
         selectedChar = c.id;
         localStorage.setItem(CHAR_KEY, selectedChar);
@@ -864,17 +981,19 @@
   function findChar(id){
     return CHARACTERS.find(function(x){ return x.id === id; }) || CHARACTERS[0];
   }
-  function opponentChar(id){
-    return CHARACTERS.find(function(x){ return x.id !== id; }) || CHARACTERS[1];
+  /** 相手のキャラ。指定があればそれ、無ければプレイヤーと違うキャラを順に選ぶ */
+  function opponentChar(preferId, playerId){
+    if (preferId && preferId !== playerId) return findChar(preferId);
+    const other = CHARACTERS.find(function(x){ return x.id !== playerId; });
+    return other || CHARACTERS[1];
   }
   /** 見た目の更新。pose: "idle"|"run"|"swing"、facing: "left"|"right"。
-      変化した時だけ img.src / --flip を触る(毎フレーム代入しない) */
-  function applyVisual(vis, wrap, img, charId, pose, facing){
-    if (vis.pose !== pose) {
-      vis.pose = pose;
+      変化した時だけDOMを触る(毎フレーム代入しない) */
+  function applyVisual(vis, wrap, charId, pose, facing){
+    if (vis.pose !== pose || vis.char !== charId) {
+      vis.pose = pose; vis.char = charId;
       wrap.dataset.pose = pose;
-      const f = poseFile(charId, pose);
-      if (img.getAttribute("src") !== f) img.src = f;
+      renderCharInto(wrap.querySelector(".body"), charId, pose);
     }
     const flip = facing === "right" ? "-1" : "1";
     if (vis.flip !== flip) {
@@ -960,19 +1079,19 @@
         tellMs: 強打前の予備動作の長さ、smashEvery: n本に1本スマッシュを打つ
      ========================================================= */
   const OPPONENTS = [
-    { id:"rookie", name:"ルーキー", desc:"ミスが多い。まずは相手のアウトを待とう", style:"erratic",
+    { id:"rookie", name:"ルーキー", char:"piyopiyo", desc:"ミスが多い。まずは相手のアウトを待とう", style:"erratic",
       speed:0.052, reactionMs:220, reach:15, errorRate:0.18, smartChance:0.10,
       startDuration:1300, minDuration:920, durationMul:1.05, smashReachMul:0.55, lobWeak:false, tellMs:0 },
-    { id:"retriever", name:"ねばりの守護神", desc:"遅いがなんでも拾う。角を狙って走らせろ", style:"steady",
+    { id:"retriever", name:"ねばりの守護神", char:"mokomoko", desc:"遅いがなんでも拾う。角を狙って走らせろ", style:"steady",
       speed:0.076, reactionMs:120, reach:17, errorRate:0.04, smartChance:0.20,
       startDuration:1200, minDuration:840, durationMul:1.10, smashReachMul:0.35, lobWeak:false, tellMs:0 },
-    { id:"rusher", name:"ネットラッシャー", desc:"ネットに詰めてくる。頭上をロブ(▲)で抜け", style:"netrush",
+    { id:"rusher", name:"ネットラッシャー", char:"pyonpyon", desc:"ネットに詰めてくる。頭上をロブ(▲)で抜け", style:"netrush",
       speed:0.070, reactionMs:90, reach:20, errorRate:0.08, smartChance:0.45,
       startDuration:1100, minDuration:780, durationMul:0.88, smashReachMul:0.45, lobWeak:true, tellMs:0 },
-    { id:"power", name:"パワーヒッター", desc:"赤く光ったら強打が来る。落ち着いて合わせろ", style:"power",
+    { id:"power", name:"パワーヒッター", char:"nosonoso", desc:"赤く光ったら強打が来る。落ち着いて合わせろ", style:"power",
       speed:0.064, reactionMs:140, reach:16, errorRate:0.12, smartChance:0.50,
       startDuration:1050, minDuration:730, durationMul:0.80, smashReachMul:0.50, lobWeak:false, tellMs:180 },
-    { id:"champion", name:"チャンピオン", desc:"死角なし。4本に1本スマッシュを打ってくる", style:"allround",
+    { id:"champion", name:"チャンピオン", char:"patapata", desc:"死角なし。4本に1本スマッシュを打ってくる", style:"allround",
       speed:0.078, reactionMs:100, reach:17, errorRate:0.05, smartChance:0.60,
       startDuration:1000, minDuration:680, durationMul:0.85, smashReachMul:0.30, lobWeak:false, tellMs:150, smashEvery:4 },
   ];
@@ -981,7 +1100,7 @@
   /* ラリーアタック用の「ラリーマシン」。必ず返す(reach 100・アウト無し)代わりに、
      続けるほど球が速く・狙いが厳しくなる(難易度ランプは rampFor で計算する)。 */
   const RALLY_MACHINE = {
-    id:"machine", name:"ラリーマシン", desc:"ミスするまで続く", style:"machine",
+    id:"machine", name:"ラリーマシン", char:"petapeta", desc:"ミスするまで続く", style:"machine",
     speed:0.30, reactionMs:60, reach:100, errorRate:0, smartChance:0.10,
     startDuration:1100, minDuration:520, durationMul:1.0, smashReachMul:1.0, lobWeak:false, tellMs:0,
   };
@@ -1096,6 +1215,7 @@
 
     let phase = "serve";
     let opp = OPPONENTS[0];
+    let oppCharId = CHARACTERS[1].id;   // 相手のキャラ(OPPONENTS の char。自分と被ったら別のキャラ)
     let exchanges = 0;            // このポイントで自分が返した回数(球速の基準)
     let meta = { mode:"free", stage:null };
     let onEnd = null;             // モード側のコールバック(結果画面のボタンを描く)
@@ -1113,7 +1233,7 @@
     const SWING_MS = 240;         // スイングポーズを見せる時間
     const player = { x: 50, targetX: 50, min: Court.X_MIN, max: Court.X_MAX, running: null, facing: "left", cooldownUntil: 0 };
     const opponent = { x: 50, min: Court.X_MIN, max: Court.X_MAX, running: null, facing: "left" };
-    const vis = { player: { pose:null, flip:null }, opponent: { pose:null, flip:null } };
+    const vis = { player: { pose:null, flip:null, char:null }, opponent: { pose:null, flip:null, char:null } };
     let playerSwingUntil = 0, opponentSwingUntil = 0;
     const ball = { x:50, y:Court.OPPONENT_Y, fromX:50, fromY:Court.OPPONENT_Y,
       targetX:50, targetY:Court.PLAYER_Y, flightStart:0, flightDuration:1200, arc:42 };
@@ -1133,8 +1253,7 @@
 
     function el(){
       return { ball: $("ball"), shadow: $("ballShadow"), hitZone: $("hitZone"),
-        player: $("playerWrap"), opponent: $("opponentWrap"),
-        playerImg: $("playerImg"), opponentImg: $("opponentImg") };
+        player: $("playerWrap"), opponent: $("opponentWrap") };
     }
     /** 「今タップしたら実際にヒットする」か。swing() の成功条件と同じ式にして、
         見た目(バー/ボールの光り)と成否が食い違わないようにする */
@@ -1145,9 +1264,9 @@
     }
     function updateVisuals(now){
       const e = el();
-      applyVisual(vis.player, e.player, e.playerImg, selectedChar,
+      applyVisual(vis.player, e.player, selectedChar,
         now < playerSwingUntil ? "swing" : (player.running ? "run" : "idle"), player.facing);
-      applyVisual(vis.opponent, e.opponent, e.opponentImg, opponentChar(selectedChar).id,
+      applyVisual(vis.opponent, e.opponent, oppCharId,
         now < opponentSwingUntil ? "swing" : (opponent.running ? "run" : "idle"), opponent.facing);
     }
     function rallyBase(){
@@ -1510,6 +1629,7 @@
       lastSmartReturn = false; lastShot = null; pendingShot = null; forcedCourse = null;
       exchanges = 0; opponentHits = 0; gauge = 0; paintGauge();
       stats.deuceSeen = false; stats.playerMisses = 0; stats.smashPoints = 0; stats.lobPoints = 0; stats.outs = 0;
+      oppCharId = opponentChar(opp.char, selectedChar).id;
       rallyRun.hits = 0; rallyRun.score = 0; rallyRun.combo = 0; rallyRun.maxCombo = 0;
       // 前の試合の最後の球(アウトなら場外)が残ったままにならないよう、相手の足元に戻す
       ball.x = 50; ball.y = Court.OPPONENT_Y; ball.fromX = 50; ball.fromY = Court.OPPONENT_Y;
@@ -1523,7 +1643,8 @@
       player.x = 50; player.targetX = 50; player.cooldownUntil = 0; player.running = null; player.facing = "left";
       opponent.x = 50; opponent.running = null; opponent.facing = "left";
       playerSwingUntil = 0; opponentSwingUntil = 0;
-      vis.player.pose = null; vis.player.flip = null; vis.opponent.pose = null; vis.opponent.flip = null;
+      vis.player.pose = null; vis.player.flip = null; vis.player.char = null;
+      vis.opponent.pose = null; vis.opponent.flip = null; vis.opponent.char = null;
       phase = "serve";
       if (isRally()) paintRallyScore();
       else {
@@ -1577,9 +1698,10 @@
         rallyRun: { hits: rallyRun.hits, score: rallyRun.score, combo: rallyRun.combo, maxCombo: rallyRun.maxCombo },
         player: { x: player.x, targetX: player.targetX, min: player.min, max: player.max,
           running: player.running, facing: player.facing, cooldownUntil: player.cooldownUntil },
-        visual: { playerPose: vis.player.pose, playerFlip: vis.player.flip,
-          opponentPose: vis.opponent.pose, opponentFlip: vis.opponent.flip,
-          playerSrc: $("playerImg").getAttribute("src"), ready: isHittableNow(performance.now()) },
+        visual: { playerPose: vis.player.pose, playerFlip: vis.player.flip, playerChar: vis.player.char,
+          opponentPose: vis.opponent.pose, opponentFlip: vis.opponent.flip, opponentChar: vis.opponent.char,
+          playerArt: $("playerWrap").querySelector(".body").dataset.art,
+          ready: isHittableNow(performance.now()) },
         opponent: { id: opp.id, x: opponent.x, targetX: ball.targetX, smartReturn: lastSmartReturn,
           running: opponent.running, reach: opp.reach, tell: tell, atNet: atNet },
         lastShot: lastShot,
@@ -1767,8 +1889,9 @@
         const row = document.createElement("div");
         row.className = "ladderRow" + (locked ? " locked" : "") + (beatenN ? " beaten" : "");
         row.dataset.stage = String(i);
-        const img = document.createElement("img");
-        img.src = poseFile(opponentChar(selectedChar).id, "idle"); img.alt = "";
+        const img = document.createElement("div");
+        img.className = "ladderArt";
+        renderCharInto(img, opponentChar(o.char, selectedChar).id, "idle");
         const info = document.createElement("div");
         info.className = "info";
         info.innerHTML = '<div class="name">' + (i + 1) + '. ' + (locked ? "???" : o.name) + '</div>' +

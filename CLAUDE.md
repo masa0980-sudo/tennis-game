@@ -36,8 +36,15 @@ glue at the bottom).
   `aimFromContact`/`aimAwayFromPlayer` → `Fx` (popups/flash/shake) → `TennisGame` (rAF loop, rally
   state machine, `debugState`) → `Modes` (tournament progress in localStorage) → `Input` →
   navigation.
-- **`OPPONENTS`** is a data table (speed / reactionMs / reach / errorRate / smartChance /
-  durationMul / smashReachMul / lobWeak / tellMs / smashEvery). All personality lives in
+- **Characters**: `CHARACTERS` holds 10 mascots. Each has `body`/`accent`/`ear`; ふにふに and
+  ことこと additionally have `idle`/`run`/`swing` PNG paths. `poseFile()` returns a path when art
+  exists and loads, otherwise `null`, and `renderCharInto()` then draws the character with
+  `MochiArt.svg()` — a parametric SVG mochi (body, headband, blush, ear variant) plus an overlaid
+  racket that only SVG characters need (the PNGs already have one drawn in). **To upgrade a
+  character, just add its three PNG paths to its `CHARACTERS` entry** — nothing else changes.
+- **`OPPONENTS`** is a data table (`char` for which mascot it wears, plus speed / reactionMs /
+  reach / errorRate / smartChance / durationMul / smashReachMul / lobWeak / tellMs / smashEvery).
+  All personality lives in
   `opponentArrives()`, which reads those numbers — balance changes should be table edits, not new
   branches. Each opponent has a readable "tell": a lean toward the aimed side, a red `charge` glow
   before a hard shot, and the net-rusher physically moving up the court (`atNet`, weak to lobs).
