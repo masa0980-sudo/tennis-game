@@ -29,13 +29,26 @@ glue at the bottom).
 
 - **Screens**: `title`(character select) → `play` → `result`, toggled via `show(id)` +
   a `SCREENS` array. Any new screen must be added to `SCREENS`.
-- **`TennisGame`**: the core timing loop. A ball animates toward the player over `duration` ms;
-  tapping/clicking/pressing Space within `[duration - WINDOW_MS, duration + GRACE_MS]` of launch
-  counts as a hit, extends the rally, and speeds things up for the next volley. Missing (wrong
-  timing, or no input at all) ends the run.
-- **`window.__tennis`**: exposes `debugState()` (phase/duration/launchAt/windowMs/graceMs/rally)
-  for Playwright to compute exactly when to dispatch a tap — same idea as `debugState()` on
-  `EchoGame`/`RingGame` in the `Rhythm_game` repo.
+- **Modules (in dependency order)**: `Sfx` (Web Audio, ported from Rhythm_game) → `Court`/`rand`
+  (logical X 0–100 mapped to CSS 15–85%, swappable RNG via `setRng`) → `scoreLabels()` (pure
+  real-tennis scoring: 0/15/30/40, deuce, AD) → `Characters`/`setPose` → `ShotSystem` (timing
+  tiers + course → target/duration/arc, DOM-free) → `AutoMover` → opponent data + `canReach`/
+  `aimFromContact`/`aimAwayFromPlayer` → `Fx` (popups/flash) → `TennisGame` (rAF loop, rally
+  state machine, `debugState`) → `Input` → navigation.
+- **Controls are one-thumb**: the player character auto-runs to the ball (`AutoMover`). A tap /
+  Space swings at `pointerdown` time; the judgment tier (`perfect`/`good`/`ok`/`whiff`) comes from
+  `tapTime - arrivalAt`. The course (left/right/straight/lob) is read *after* the swing from the
+  swipe direction (or a held/just-pressed arrow key) during a short window; a 90 ms hit-stop hides
+  that latency. A whiff is not an instant loss — it only locks swinging for a cooldown, so the
+  auto-miss timer decides the point.
+- **Rally phases**: `serve → ballToPlayer → hitstop → ballToOpponent → returning → ballToPlayer …`,
+  ending in `pointOver` / `gameOver`. Ball position is lerped each frame with a fake arc
+  (`hover = arc*4t(1-t)`); logic uses the lerped x, the arc is render-only.
+- **`window.__tennis`**: `begin/swing/applyCourse/forceCourse/setRng/scoreLabels/debugState/sfx`.
+  `debugState()` exposes phase, ball (incl. `arrivalAt`), player/opponent, `lastShot`
+  (tier/deltaMs/course), score labels and the timing constants, so Playwright can compute exactly
+  when to dispatch a `pointerdown` on `#court` — same idea as `debugState()` on `EchoGame`/`RingGame`
+  in the `Rhythm_game` repo. Tests dispatch `pointermove` with `clientX/clientY` deltas to swipe.
 - **Character art** (`art/funifuni.png`, `art/kotokoto.png`): single poses cropped out of existing
   LINE sticker sheets (`mo-portfolio/img/stamp_01_funifuni2026.png` /
   `stamp_02_kotokoto2026.png`), background kept transparent. The source stamps are only 60×60px
@@ -43,8 +56,11 @@ glue at the bottom).
   Higher-resolution originals exist only on masa's local machine — ask before assuming they're
   available anywhere else.
 
-## Scope
+## Scope / roadmap
 
-This is a first pass: only the core timing mechanic and character selection are in. Rally/hit
-effects, BGM, an animated opponent, combo scoring, etc. are intentionally left for later — don't
-add them unprompted.
+The game is being rebuilt in phases (see the commit history): 1) one-thumb controls + shot tiers,
+2) a ladder of opponents with distinct personalities, a smash gauge and a tournament mode,
+3) an endless "rally attack" score mode with the shared Firestore TOP10 (same mechanism as
+Rhythm_game, gameId `tennis`), 4) achievements/unlocks and presentation (particles, shake,
+slow-mo, court themes). Sporty 4-pose character art (`art/<char>-<pose>.png`) has been requested
+from masa's local image-generation session; until it lands, poses are CSS-only (`data-pose`).

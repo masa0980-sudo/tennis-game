@@ -40,24 +40,25 @@
     background:rgba(255,255,255,.05); color:#fff; font-size:14px; cursor:pointer; }
 
   /* ===== プレイ画面 ===== */
-  #play{ justify-content:space-between; padding:16px 12px 24px; }
-  .hud{ display:flex; justify-content:space-between; width:100%; max-width:460px;
+  #play{ justify-content:space-between; padding:12px 10px 16px; gap:8px; }
+  .hud{ display:flex; justify-content:space-between; align-items:center; width:100%; max-width:460px;
     font-variant-numeric:tabular-nums; font-size:12px; color:#9aa4c4; }
-  .hud b{ color:#fff; font-size:26px; display:block; }
+  .hud b{ color:#fff; font-size:26px; display:block; line-height:1.1; }
   .hud .you b{ color:#7dd3fc; }
+  .hud .cpu{ text-align:right; }
   .hud .cpu b{ color:#f0abfc; }
-  .deuceNote{ align-self:center; font-size:11px; font-weight:800; letter-spacing:.08em;
-    color:#fde68a; padding:3px 10px; border-radius:999px; background:rgba(253,230,138,.14);
+  .hud .mid{ display:flex; flex-direction:column; align-items:center; gap:3px; }
+  .rallyCount{ font-size:11px; letter-spacing:.14em; font-weight:800; color:#cbd5e1; }
+  .rallyCount b{ font-size:14px; display:inline; color:#fff; margin-left:4px; }
+  .deuceNote{ font-size:11px; font-weight:800; letter-spacing:.08em;
+    color:#fde68a; padding:2px 10px; border-radius:999px; background:rgba(253,230,138,.14);
     border:1px solid rgba(253,230,138,.4); }
   .deuceNote[hidden]{ display:none; }
 
   /* テニスコート風の背景。芝(グリーン)の地に、シングルスのサイドライン・
      サービスラインを白線で描く。実寸どおりの比率ではなく、あくまで
      「テニスコートらしく見える」ことを優先した簡略デザイン */
-  /* 縦長のテニスコートに固定する。高さ(flex:1で残り空間いっぱい)から
-     幅をaspect-ratioで導出する側に倒す(幅を先に決めて高さを残り空間任せに
-     すると、横長で低い画面のときにコートまで横長になってしまっていたため)。 */
-  .court{ position:relative; flex:1; width:auto; max-width:460px; aspect-ratio:2/3; margin:8px auto;
+  .court{ position:relative; width:100%; max-width:460px; flex:1; min-height:380px; margin:0;
     background:
       linear-gradient(transparent 0 30%, rgba(255,255,255,.4) 30% calc(30% + 2px), transparent calc(30% + 2px) 100%),
       linear-gradient(transparent 0 70%, rgba(255,255,255,.4) 70% calc(70% + 2px), transparent calc(70% + 2px) 100%),
@@ -66,7 +67,8 @@
         transparent 0 10%, rgba(255,255,255,.55) 10% calc(10% + 2px), transparent calc(10% + 2px) 90%,
         rgba(255,255,255,.55) 90% calc(90% + 2px), transparent calc(90% + 2px) 100%),
       linear-gradient(180deg, #1f6b4f, #1c6349 40%, #14432f);
-    border:3px solid rgba(255,255,255,.6); border-radius:14px; overflow:hidden; }
+    border:3px solid rgba(255,255,255,.6); border-radius:14px; overflow:hidden; cursor:pointer;
+    user-select:none; -webkit-user-select:none; }
   .netLine{ position:absolute; left:6%; right:6%; top:48%; height:6px; margin-top:-3px;
     background:
       repeating-linear-gradient(90deg, rgba(10,20,15,.9) 0 6px, transparent 6px 7px),
@@ -78,43 +80,66 @@
     border-radius:50%; background:rgba(0,0,0,.35); filter:blur(1px); z-index:3; }
   .ball{ position:absolute; width:22px; height:22px; margin-left:-11px; margin-top:-11px;
     border-radius:50%; background:radial-gradient(circle at 35% 30%, #fff, #ffd54a 55%, #f3a712 100%);
-    box-shadow:0 0 10px rgba(255,213,74,.7); z-index:4; transition: box-shadow .08s; }
+    box-shadow:0 0 10px rgba(255,213,74,.7); z-index:4; }
   .ball.hidden{ opacity:0; }
-  /* ボールが「今の打点(位置+タイミング)なら実際にヒットする」瞬間だけ強く光る。
-     判定ルールと完全に同じ式で光らせるので、見た目と成否が食い違わない */
-  .ball.ready{ box-shadow:0 0 4px 2px #fff, 0 0 22px 9px rgba(255,213,74,.95); }
 
-  /* 自分の「打てる範囲」を示すバー。プレイヤーの現在位置に追従する。
-     ボールが自分に向かっているあいだは薄く見えているだけ(=位置の目安)で、
-     実際にタップすればヒットする瞬間だけ明るく光って脈打つ(=判定と直結)。
-     以前の点線の輪は「ラリー中ずっと同じ見た目」で分かりにくかったための作り直し。 */
-  .hitZone{ position:absolute; bottom:12%; width:34%; max-width:170px; height:14px;
-    margin-left:-17%; border-radius:999px; z-index:1; pointer-events:none;
-    background:rgba(255,255,255,.12); opacity:0; transition:left .05s linear, opacity .15s, background .1s, box-shadow .1s; }
-  .hitZone.visible{ opacity:1; }
-  .hitZone.ready{ background:linear-gradient(90deg, rgba(56,189,248,.5), #7dd3fc, rgba(56,189,248,.5));
-    box-shadow:0 0 18px rgba(56,189,248,.85); animation:hitZonePulse .3s ease-in-out infinite alternate; }
-  @keyframes hitZonePulse{ from{ transform:scaleY(1); } to{ transform:scaleY(1.5); } }
+  /* 自分の「届く範囲」。プレイヤーの現在位置に追従し、ボールが自分の番の
+     ときだけ光る(=そろそろ打てる、が視覚的にわかる) */
+  .reach{ position:absolute; bottom:16%; width:30%; max-width:150px; height:26px;
+    margin-left:-15%; border:2px dashed rgba(255,255,255,.3); border-radius:999px; z-index:1; }
+  .reach.armed{ border-color:var(--accent); box-shadow:0 0 16px rgba(56,189,248,.5); }
 
-  /* キャラの向き(--flip: 1=通常/-1=左右反転)は素材が左向きに描かれているため、
-     右へ移動するときだけ反転する。ヒット/ミス演出のtransformはこの反転と
-     衝突しないよう、必ずscaleX(var(--flip,1))を先頭に合成する。 */
-  .charWrap{ position:absolute; z-index:5; transition:left .05s linear; }
-  .charWrap img{ width:88px; height:auto; transition: transform .12s;
-    transform: scaleX(var(--flip,1)); }
-  .charWrap.hit img{ transform: scaleX(var(--flip,1)) scale(1.16) rotate(-6deg); }
-  .charWrap.miss img{ transform: scaleX(var(--flip,1)) scale(.92) rotate(8deg); filter:grayscale(.5); }
-  .charWrap.whiff img{ transform: scaleX(var(--flip,1)) rotate(-14deg); }
+  .charWrap{ position:absolute; z-index:5; }
+  .charWrap .body{ position:relative; }
+  .charWrap img{ width:88px; height:auto; display:block; transition: transform .12s; }
+  /* ポーズ(走る/構え)は data-pose で切り替える。素材が1枚しか無い間はCSSだけで表現する。
+     左右反転は .body に付ける(img の transform に transition があるので、そこで反転すると
+     scaleX(0) を経由して一瞬ペラペラになる) */
+  .charWrap[data-pose="runL"] img, .charWrap[data-pose="runR"] img{
+    animation: runBob .22s ease-in-out infinite alternate; }
+  .charWrap[data-pose="runL"] .body{ transform: scaleX(-1); }
+  @keyframes runBob{ from{ margin-top:0; } to{ margin-top:-6px; } }
+  .charWrap.hit img{ transform: scale(1.16) rotate(-6deg); animation:none; }
+  .charWrap.miss img{ transform: scale(.92) rotate(8deg); filter:grayscale(.5); animation:none; }
+  .charWrap.whiff img{ transform: rotate(-14deg); animation:none; }
 
-  .playerWrap{ bottom:0.5%; transform:translateX(-50%); }
+  .playerWrap{ bottom:2%; transform:translateX(-50%); }
   .playerWrap img{ width:92px; }
-  .playerWrap.hit img{ transform: scaleX(var(--flip,1)) scale(1.18) rotate(-6deg); }
+  .playerWrap.hit img{ transform: scale(1.18) rotate(-6deg); }
 
-  .opponentWrap{ top:0.5%; transform:translateX(-50%); }
+  .opponentWrap{ top:2%; transform:translateX(-50%); }
   .opponentWrap img{ width:78px; }
-  .opponentWrap.hit img{ transform: scaleX(var(--flip,1)) scale(1.18) rotate(6deg); }
+  .opponentWrap.hit img{ transform: scale(1.18) rotate(6deg); }
 
-  .tapHint{ font-size:12px; color:#9aa4c4; }
+  .racket{ position:absolute; width:28px; height:48px; pointer-events:none;
+    transition: transform .16s cubic-bezier(.2,1.4,.4,1); }
+  .racket svg{ width:100%; height:100%; display:block; }
+
+  .playerRacket{ right:-6px; bottom:24px; transform-origin:50% 92%; transform:rotate(28deg); }
+  .playerWrap.hit .playerRacket{ transform:rotate(-95deg); }
+  .playerWrap.whiff .playerRacket{ transform:rotate(-70deg); }
+
+  .opponentRacket{ left:-6px; top:24px; transform-origin:50% 8%; transform:rotate(-28deg) scale(-1,-1); }
+  .opponentWrap.hit .opponentRacket{ transform:rotate(95deg) scale(-1,-1); }
+
+  /* 判定ポップ(PERFECT! / GOOD / EARLY / LATE / 空振り) */
+  .judgePop{ position:absolute; z-index:7; transform:translate(-50%,0); font-weight:900; font-size:18px;
+    letter-spacing:.04em; pointer-events:none; text-shadow:0 2px 6px rgba(0,0,0,.55);
+    animation: popUp .65s ease-out forwards; white-space:nowrap; }
+  .judgePop.perfect{ font-size:23px; color:#fff7c2;
+    text-shadow:0 0 12px rgba(253,230,138,.9), 0 2px 6px rgba(0,0,0,.55); }
+  .judgePop.good{ color:#7dd3fc; }
+  .judgePop.ok{ color:#fde68a; font-size:15px; }
+  .judgePop.whiff{ color:#fca5a5; font-size:15px; }
+  @keyframes popUp{
+    0%{ opacity:0; transform:translate(-50%,10px) scale(.8); }
+    15%{ opacity:1; transform:translate(-50%,0) scale(1.12); }
+    100%{ opacity:0; transform:translate(-50%,-44px) scale(1); }
+  }
+
+  .tapHint{ font-size:12px; color:#9aa4c4; margin:0; }
+  .hintDir{ display:inline-block; padding:0 3px; opacity:.5; transition:opacity .15s, color .15s; }
+  .hintDir.lit{ opacity:1; color:var(--accent); text-shadow:0 0 8px rgba(56,189,248,.8); }
 
   .flash{ position:absolute; inset:0; pointer-events:none; opacity:0; z-index:6; }
   .flash.good{ background:rgba(52,211,153,.18); }
@@ -122,14 +147,11 @@
   .flash.show{ animation: flashOut .3s ease-out; }
   @keyframes flashOut{ from{ opacity:1; } to{ opacity:0; } }
 
-  .moveButtons{ display:flex; gap:10px; margin-top:4px; }
-  .moveBtn{ width:56px; height:44px; border-radius:12px; border:1px solid rgba(255,255,255,.2);
-    background:rgba(255,255,255,.06); color:#fff; font-size:20px; touch-action:manipulation; }
-  .moveBtn:active{ background:rgba(56,189,248,.25); }
-
   #result .rank{ font-size:40px; font-weight:900; margin:0; }
   #result .score{ font-size:15px; color:#9aa4c4; }
   #result .score b{ color:#fff; font-size:28px; }
+  #result .stats{ font-size:12px; color:#9aa4c4; margin:0; }
+  #result .stats b{ color:#fff; }
 </style>
 </head>
 <body>
@@ -138,37 +160,56 @@
   <!-- ================= タイトル(キャラクター選択) ================= -->
   <section id="title" class="screen active">
     <h1>コート・ラリー</h1>
-    <p class="sub">左右に動いてボールに合わせ、タイミングよく打ち返そう。</p>
+    <p class="sub">タイミングよくタップ。スワイプでコースを打ち分けよう。</p>
     <div class="charRow" id="charRow"></div>
     <button class="bigBtn" id="startBtn">はじめる</button>
-    <p class="tapHint">← → / A D で移動　・　タップ / クリック / スペースで打つ</p>
+    <p class="tapHint">タップ / スペースで打つ　・　◀ ▲ ▶ スワイプ / 矢印キーでコース</p>
   </section>
 
   <!-- ================= プレイ ================= -->
   <section id="play" class="screen">
     <div class="hud">
       <span class="you">あなた<b id="playerScore">0</b></span>
-      <span class="deuceNote" id="deuceNote" hidden>デュース</span>
+      <span class="mid">
+        <span class="rallyCount">RALLY<b id="rallyCount">0</b></span>
+        <span class="deuceNote" id="deuceNote" hidden>デュース</span>
+      </span>
       <span class="cpu">相手<b id="opponentScore">0</b></span>
     </div>
     <div class="court" id="court">
       <div class="netLine"></div>
       <div class="opponentWrap charWrap" id="opponentWrap">
-        <img id="opponentImg" alt="">
+        <div class="body">
+          <img id="opponentImg" alt="">
+          <div class="racket opponentRacket">
+            <svg viewBox="0 0 30 52" aria-hidden="true">
+              <ellipse cx="15" cy="16" rx="12" ry="15" fill="none" stroke="#e5e7eb" stroke-width="2.5"/>
+              <path d="M6 16H24M15 3V29M9 8L21 24M21 8L9 24" stroke="#e5e7eb" stroke-width=".8" opacity=".6"/>
+              <rect x="12" y="30" width="6" height="20" rx="3" fill="#b5773a"/>
+            </svg>
+          </div>
+        </div>
       </div>
+      <div class="reach" id="reach"></div>
       <div class="ballShadow" id="ballShadow"></div>
       <div class="ball" id="ball"></div>
-      <div class="hitZone" id="hitZone"></div>
       <div class="playerWrap charWrap" id="playerWrap">
-        <img id="playerImg" alt="">
+        <div class="body">
+          <img id="playerImg" alt="">
+          <div class="racket playerRacket">
+            <svg viewBox="0 0 30 52" aria-hidden="true">
+              <ellipse cx="15" cy="16" rx="12" ry="15" fill="none" stroke="#e5e7eb" stroke-width="2.5"/>
+              <path d="M6 16H24M15 3V29M9 8L21 24M21 8L9 24" stroke="#e5e7eb" stroke-width=".8" opacity=".6"/>
+              <rect x="12" y="30" width="6" height="20" rx="3" fill="#b5773a"/>
+            </svg>
+          </div>
+        </div>
       </div>
       <div class="flash" id="flash"></div>
     </div>
-    <p class="tapHint">← → / A D で移動・タップで打つ（打つ瞬間に押した方向へ狙いを変えられる）</p>
-    <div class="moveButtons" id="moveButtons">
-      <button class="moveBtn" id="btnLeft">◀</button>
-      <button class="moveBtn" id="btnRight">▶</button>
-    </div>
+    <p class="tapHint">タップで打つ ・ スワイプでコース
+      <span class="hintDir" data-dir="left">◀</span><span class="hintDir" data-dir="lob">▲</span><span class="hintDir" data-dir="right">▶</span>
+    </p>
   </section>
 
   <!-- ================= 結果 ================= -->
@@ -176,6 +217,7 @@
     <span class="sub">RESULT</span>
     <p class="rank" id="rankVal">-</p>
     <p class="score">あなた <b id="resultPlayer">0</b> ー <b id="resultOpponent">0</b> 相手</p>
+    <p class="stats">最長ラリー <b id="resultRally">0</b> ・ PERFECT <b id="resultPerfect">0</b></p>
     <button class="bigBtn" id="retryBtn">もう一度</button>
     <button class="ghostBtn" id="titleBtn">キャラを選び直す</button>
   </section>
@@ -200,74 +242,101 @@
   function lerp(a, b, t){ return a + (b - a) * t; }
 
   /* =========================================================
-     1. キャラクター
+     1. Sfx — Web Audio API で音を生成する(外部音源ファイル不要)。
+        Rhythm_game の Sfx から unlock/tone を移植し、テニス用の効果音を足した。
      ========================================================= */
-  // 各キャラクター4ポーズ(idle/run/swing)のスポーティ画像。fal.aiで生成した
-  // ものを元のLINEスタンプ(stamp_01_funifuni2026.png / stamp_02_kotokoto2026.png)
-  // のシルエット・表情を踏襲しつつ差し替えた。run-left/run-rightは1枚の
-  // run画像をCSSで左右反転(--flip)して兼用する(素材は左向きに描かれている)。
-  const CHARACTERS = [
-    { id:"funifuni", name:"ふにふに",
-      idle:"art/funifuni-idle.png", run:"art/funifuni-run.png", swing:"art/funifuni-swing.png" },
-    { id:"kotokoto", name:"ことこと",
-      idle:"art/kotokoto-idle.png", run:"art/kotokoto-run.png", swing:"art/kotokoto-swing.png" }
-  ];
-  const CHAR_KEY = "tennis-game:character";
-  let selectedChar = localStorage.getItem(CHAR_KEY) || CHARACTERS[0].id;
+  const Sfx = (function(){
+    let ctx = null, master = null;
+    function ensure(){
+      if (!ctx) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return null;
+        ctx = new AC();
+        master = ctx.createGain();
+        master.gain.value = 0.35;
+        master.connect(ctx.destination);
+      }
+      return ctx;
+    }
+    // ユーザー操作(ボタン押下)内で呼び、自動再生制限を解除する
+    function unlock(){
+      const c = ensure();
+      if (c && c.state === "suspended") c.resume();
+      return c;
+    }
+    function tone(at, opt){
+      const c = ensure();
+      if (!c) return;
+      const osc = c.createOscillator();
+      const g = c.createGain();
+      osc.type = opt.type || "sine";
+      osc.frequency.setValueAtTime(opt.freq, at);
+      if (opt.freqEnd != null) osc.frequency.exponentialRampToValueAtTime(opt.freqEnd, at + opt.dur);
+      const peak = opt.peak != null ? opt.peak : 0.25;
+      const dur  = opt.dur  != null ? opt.dur  : 0.08;
+      g.gain.setValueAtTime(0.0001, at);
+      g.gain.exponentialRampToValueAtTime(peak, at + 0.008);
+      g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+      osc.connect(g); g.connect(master);
+      osc.start(at);
+      osc.stop(at + dur + 0.03);
+    }
+    function now(){ const c = ensure(); return c ? c.currentTime : 0; }
 
-  function paintCharRow(){
-    const box = $("charRow");
-    box.innerHTML = "";
-    CHARACTERS.forEach(function(c){
-      const btn = document.createElement("button");
-      btn.className = "charBtn" + (c.id === selectedChar ? " selected" : "");
-      btn.innerHTML = '<img src="' + c.idle + '" alt="' + c.name + '">' +
-        '<span class="cname">' + c.name + '</span>';
-      btn.addEventListener("click", function(){
-        selectedChar = c.id;
-        localStorage.setItem(CHAR_KEY, selectedChar);
-        paintCharRow();
-      });
-      box.appendChild(btn);
-    });
-  }
+    function hit(tier){
+      const t = now();
+      if (tier === "perfect") {
+        tone(t,        { type:"sine", freq:1046.5, dur:0.16, peak:0.3 });
+        tone(t + 0.03, { type:"sine", freq:1318.5, dur:0.16, peak:0.24 });
+      } else if (tier === "good") {
+        tone(t, { type:"sine", freq:880, dur:0.14, peak:0.26 });
+      } else {
+        tone(t, { type:"triangle", freq:520, dur:0.09, peak:0.18 });
+      }
+    }
+    function whiff(){ tone(now(), { type:"sawtooth", freq:220, freqEnd:120, dur:0.18, peak:0.2 }); }
+    function bounce(){ tone(now(), { type:"sine", freq:180, dur:0.05, peak:0.14 }); }
+    function pointWin(){
+      const t = now();
+      [660, 880, 1320].forEach(function(f, i){ tone(t + i * 0.09, { type:"sine", freq:f, dur:0.14, peak:0.22 }); });
+    }
+    function pointLose(){
+      const t = now();
+      tone(t,        { type:"triangle", freq:440, dur:0.14, peak:0.2 });
+      tone(t + 0.12, { type:"triangle", freq:330, dur:0.2,  peak:0.18 });
+    }
+    function win(){
+      const t = now();
+      [523.25, 659.25, 783.99, 1046.5].forEach(function(f, i){ tone(t + i * 0.12, { type:"sine", freq:f, dur:0.22, peak:0.26 }); });
+    }
+    function lose(){
+      const t = now();
+      tone(t,        { type:"triangle", freq:392, dur:0.25, peak:0.22 });
+      tone(t + 0.22, { type:"triangle", freq:311, dur:0.4,  peak:0.2 });
+    }
+    function state(){ return ctx ? ctx.state : "none"; }
 
-  function findChar(id){
-    return CHARACTERS.find(function(x){ return x.id === id; }) || CHARACTERS[0];
-  }
-  function opponentOf(id){
-    return CHARACTERS.find(function(x){ return x.id !== id; }) || CHARACTERS[1];
-  }
-  /** キャラID + ポーズ名("idle"|"run"|"swing") から画像パスを引く */
-  function poseFile(charId, pose){
-    return findChar(charId)[pose] || findChar(charId).idle;
-  }
+    return { unlock, hit, whiff, bounce, pointWin, pointLose, win, lose, state };
+  })();
 
   /* =========================================================
-     2. Court — 座標系だけを持つ小さなモジュール(DOM非依存)
-     論理X座標は0〜100。CSS上はシングルスのサイドライン(背景に描いた10%〜90%)
-     いっぱいまで使う(以前は15%〜85%に絞っていて、コートの余白が広く
-     見えすぎていた)。前後移動は無く(=奥行きは今回のスコープ外)、
-     左右移動だけを扱う。
+     2. Court / Rng — 座標系と差し替え可能な乱数(DOM非依存)
+        論理X座標は0〜100。見切れないよう、CSS上は15%〜85%の帯に写像する。
+        前後移動は無く(=奥行きは今回のスコープ外)、左右だけを扱う。
      ========================================================= */
   const Court = {
     X_MIN: 0, X_MAX: 100,
-    CSS_MIN: 10, CSS_MAX: 90,
-    PLAYER_Y: 93,     // 自分の打点(コート下端ぎりぎり、%)
-    OPPONENT_Y: 4,    // 相手の打点(コート上端ぎりぎり、%)
+    CSS_MIN: 15, CSS_MAX: 85,
+    PLAYER_Y: 88,     // 自分の打点(コート下端寄り、%)
+    OPPONENT_Y: 9,    // 相手の打点(コート上端寄り、%)
     toCssX: function(x){ return Court.CSS_MIN + (Court.CSS_MAX - Court.CSS_MIN) * (x / 100); },
   };
-
-  /* =========================================================
-     3. Rng — 差し替え可能な乱数(Playwrightから相手の挙動を固定できるようにする)
-     ========================================================= */
   let rand = Math.random;
   function setRng(fn){ rand = (typeof fn === "function") ? fn : Math.random; }
 
   /* =========================================================
-     4. スコア — 本物のテニス採点(0/15/30/40、デュース/アドバンテージ)。
-     DOMに触れない純粋関数にし、生の得点(pointsFor/pointsAgainst)から
-     毎回ラベルを導出する(セット・マッチはスコープ外、1ゲームの勝敗のみ)。
+     3. Scoring — 本物のテニス採点(0/15/30/40、デュース/アドバンテージ)。
+        DOMに触れない純粋関数。セット・マッチはスコープ外(1ゲームの勝敗のみ)。
      ========================================================= */
   function scoreLabels(pointsFor, pointsAgainst){
     if (pointsFor >= 4 && pointsFor - pointsAgainst >= 2) {
@@ -292,276 +361,428 @@
   }
 
   /* =========================================================
-     5. ゲーム本体
+     4. Characters — キャラクター選択とポーズ
+        画像は LINEスタンプから1ポーズ切り出した仮素材。ポーズ別素材が届いたら
+        art/<char>-<pose>.png を差し込む(それまでは data-pose のCSSだけで走りを表現)。
      ========================================================= */
-  const TennisGame = (function(){
-    const REACH_RADIUS = 22;        // 届く範囲(論理単位。0〜100スケール)
-    const PLAYER_SPEED = 0.085;     // 論理単位/ms
-    const AI_SPEED = 0.072;         // 相手の上限速度(自分よりわずかに遅い=勝ち筋がある)
-    const AI_REACTION_MS = 140;     // 相手が動き出すまでの反応遅延
-    const START_DURATION = 1200;    // 最初の到達時間(ms)
-    const MIN_DURATION = 680;
-    const DURATION_STEP = 45;
-    const WINDOW_MS = 260;          // 到達時刻より前、これだけ早くから成功にする
-    const GRACE_MS = 150;           // 到達時刻より後、これだけ遅くても成功にする
-    const ARC_HEIGHT = 42;          // ボールの山なり演出(px)
-    const RETURN_PAUSE = 160;
-    const SMART_RETURN_CHANCE = 0.35; // 相手がプレイヤーから遠い側を狙う確率(かしこい返球)
-    const AIM_KEY_BIAS = 16;        // 打つ瞬間に左右キーを押していると、その方向へ狙いをずらす強さ
-    const BOUNCE_MS = 180;          // hit/miss/whiffの見た目演出の長さ(swingポーズの表示時間も揃える)
+  const CHARACTERS = [
+    { id:"funifuni", name:"ふにふに", file:"art/funifuni.png" },
+    { id:"kotokoto", name:"ことこと", file:"art/kotokoto.png" }
+  ];
+  const CHAR_KEY = "tennis-game:character";
+  let selectedChar = localStorage.getItem(CHAR_KEY) || CHARACTERS[0].id;
 
-    // "serve" | "ballToPlayer" | "ballToOpponent" | "pointOver" | "gameOver"
-    let phase = "serve";
-    let duration = START_DURATION;
+  function paintCharRow(){
+    const box = $("charRow");
+    box.innerHTML = "";
+    CHARACTERS.forEach(function(c){
+      const btn = document.createElement("button");
+      btn.className = "charBtn" + (c.id === selectedChar ? " selected" : "");
+      btn.innerHTML = '<img src="' + c.file + '" alt="' + c.name + '">' +
+        '<span class="cname">' + c.name + '</span>';
+      btn.addEventListener("click", function(){
+        selectedChar = c.id;
+        localStorage.setItem(CHAR_KEY, selectedChar);
+        paintCharRow();
+      });
+      box.appendChild(btn);
+    });
+  }
+  function charFile(id){
+    const c = CHARACTERS.find(function(x){ return x.id === id; });
+    return c ? c.file : CHARACTERS[0].file;
+  }
+  function opponentFile(id){
+    const opp = CHARACTERS.find(function(x){ return x.id !== id; });
+    return opp ? opp.file : CHARACTERS[1].file;
+  }
+  // "idle" | "runL" | "runR"。変化した時だけDOMを触る
+  function setPose(wrap, pose){
+    if (wrap.dataset.pose !== pose) wrap.dataset.pose = pose;
+  }
 
-    const player = { x: 50, min: Court.X_MIN, max: Court.X_MAX };
-    const opponent = { x: 50, targetX: 50, moving: false };
-    const ball = { x:50, y:Court.OPPONENT_Y, fromX:50, fromY:Court.OPPONENT_Y,
-      targetX:50, targetY:Court.PLAYER_Y, flightStart:0, flightDuration:START_DURATION };
-
-    const keys = { left:false, right:false };
-    let rafId = null;
-    let autoMissTimer = null;
-    let opponentReactAt = 0;
-
-    // ---- 見た目(idle/run/swingポーズ + 左右反転)。ゲームロジックとは独立に
-    // 「今動いているか(pose用)」と「最後にどちらを向いていたか(反転用。動きが
-    // 止まってもidleで向きを保つ)」を分けて持つ。素材は左向きに描かれているため
-    // 向きが右のときだけ反転する ----
-    let playerMoving = false, playerFacing = -1;
-    let opponentMoving = false, opponentFacing = -1;
-    let playerSwingUntil = 0, opponentSwingUntil = 0;
-    const playerVisual = { pose:null, flip:null };
-    const opponentVisual = { pose:null, flip:null };
-
-    function triggerSwing(side){
-      const until = performance.now() + BOUNCE_MS;
-      if (side === "player") playerSwingUntil = until; else opponentSwingUntil = until;
+  /* =========================================================
+     5. ShotSystem — タイミング判定とコース(DOM非依存)
+        delta = タップ時刻 - 到達時刻(負=早い)。ティアが次の球速・配置誤差・ゲージを決め、
+        スワイプ方向(course)が狙う場所を決める。
+     ========================================================= */
+  const ShotSystem = (function(){
+    const PERFECT_MS = 55, GOOD_MS = 130, EARLY_MS = 240, LATE_MS = 150;
+    const SWING_COOLDOWN_MS = 420; // 空振り後の再スイング禁止(ok窓幅390msより広い=連打は罰せられる)
+    const TIERS = {
+      perfect: { mul:0.85, err:2,  gauge:34 },
+      good:    { mul:0.95, err:6,  gauge:12 },
+      ok:      { mul:1.08, err:14, gauge:0  },   // ふわっとした返球(相手に時間を与える)
+    };
+    const COURSES = {
+      left:     { target:12,   mul:1.0, arc:42 },
+      right:    { target:88,   mul:1.0, arc:42 },
+      straight: { target:50,   mul:1.0, arc:42 },
+      lob:      { target:null, mul:1.5, arc:110 }, // 相手の逆サイドへ、遅く高く
+    };
+    function judge(delta){
+      const a = Math.abs(delta);
+      if (a <= PERFECT_MS) return "perfect";
+      if (a <= GOOD_MS) return "good";
+      if (delta >= -EARLY_MS && delta <= LATE_MS) return "ok";
+      return "whiff";
     }
-
-    function applyVisual(state, imgEl, charId, pose, flip){
-      if (state.pose !== pose) { imgEl.src = poseFile(charId, pose); state.pose = pose; }
-      if (state.flip !== flip) { imgEl.style.setProperty("--flip", String(flip)); state.flip = flip; }
+    function courseTarget(course, opponentX){
+      if (course === "lob") return opponentX < 50 ? 80 : 20;
+      return (COURSES[course] || COURSES.straight).target;
     }
-
-    function updateVisuals(now){
-      const e = el();
-      const pSwing = now < playerSwingUntil;
-      applyVisual(playerVisual, e.playerImg, selectedChar,
-        pSwing ? "swing" : (playerMoving ? "run" : "idle"),
-        playerFacing < 0 ? 1 : -1);
-
-      const oSwing = now < opponentSwingUntil;
-      applyVisual(opponentVisual, e.opponentImg, opponentOf(selectedChar).id,
-        oSwing ? "swing" : (opponentMoving ? "run" : "idle"),
-        opponentFacing < 0 ? 1 : -1);
+    // ctx: { rallyBase, minDuration, opponentX }
+    function resolve(tier, course, ctx){
+      const T = TIERS[tier] || TIERS.ok;
+      const C = COURSES[course] || COURSES.straight;
+      const base = courseTarget(course, ctx.opponentX);
+      const targetX = clamp(base + (rand() - 0.5) * 2 * T.err, 4, 96);
+      const duration = clamp(ctx.rallyBase * T.mul * C.mul, ctx.minDuration * 0.55, 1800);
+      return { tier: tier, course: course, smash: false, targetX: targetX, duration: duration,
+        arc: C.arc, errorUnits: T.err, gaugeGain: T.gauge };
     }
+    return { judge, resolve, courseTarget, PERFECT_MS, GOOD_MS, EARLY_MS, LATE_MS, SWING_COOLDOWN_MS };
+  })();
 
-    const score = { player:0, opponent:0 };
-    let lastLabels = scoreLabels(0, 0);
-    let lastSmartReturn = false;
+  /* =========================================================
+     6. AutoMover — プレイヤーの自動移動
+        ボールが自分に向かう間は着地点へ走り、相手に向かう間はセンターへ戻る(リカバリー)。
+        到達失敗は「前の球で振られて戻り切る前に逆サイドへ速い球」のときだけ起きる。
+     ========================================================= */
+  const AutoMover = {
+    SPEED: 0.080,          // 論理単位/ms(相手AIの最速0.078よりわずかに上)
+    REACTION_MS: 80,       // 打球後、走り出すまで(走る絵を見せるため)
+    STANCE_OFFSET: 4,      // ボールの少し左に止まる(体の横で打つ見た目)
+    RECOVER_SPEED: 0.045,  // センターへ戻る速度
+    // targetX へ speed で近づく。動いた方向("left"/"right")か、動かなければ null
+    step: function(who, targetX, speed, dt){
+      const dx = targetX - who.x;
+      if (Math.abs(dx) < 0.01) return null;
+      const s = speed * dt;
+      if (Math.abs(dx) <= s) who.x = targetX;
+      else who.x += Math.sign(dx) * s;
+      who.x = clamp(who.x, who.min, who.max);
+      return dx < 0 ? "left" : "right";
+    },
+  };
 
-    function el(){
-      return { ball: $("ball"), shadow: $("ballShadow"), hitZone: $("hitZone"),
-        player: $("playerWrap"), opponent: $("opponentWrap"), flash: $("flash"),
-        playerImg: $("playerImg"), opponentImg: $("opponentImg") };
+  /* =========================================================
+     7. Opponents — 相手の定義(データ駆動)。
+        今はスパーリング相手1人だけ。個性の違う相手のラダーは次段階で足す。
+     ========================================================= */
+  const DEFAULT_OPPONENT = {
+    id:"sparring", name:"スパーリング",
+    speed:0.072, reactionMs:140, reach:17, errorRate:0, smartChance:0.35,
+    startDuration:1200, minDuration:680, durationMul:1.0, smashReachMul:0.5,
+  };
+  function canReach(receiverX, ballX, radius){
+    return Math.abs(receiverX - ballX) <= radius;
+  }
+  /** 打った瞬間の接触位置のズレから狙いを決める(相手AI用)。
+      ボールの左で打てば右へ、右で打てば左へ、正面なら中央へ。 */
+  function aimFromContact(receiverX, ballX){
+    const offset = receiverX - ballX;
+    return clamp(50 - offset * 2.6, 6, 94);
+  }
+  /** かしこい返球: プレイヤーから一番遠いコート端を狙う。 */
+  function aimAwayFromPlayer(playerX){
+    return playerX < 50 ? 90 : 10;
+  }
+
+  /* =========================================================
+     8. Fx — 演出(ロジック非依存)
+     ========================================================= */
+  const Fx = (function(){
+    const LABEL = { perfect:"PERFECT!", good:"GOOD", early:"EARLY", late:"LATE", whiff:"空振り" };
+    function judgePop(kind, cssX){
+      const court = $("court");
+      const el = document.createElement("div");
+      const cls = (kind === "early" || kind === "late") ? "ok" : kind;
+      el.className = "judgePop " + cls;
+      el.textContent = LABEL[kind] || kind;
+      el.style.left = cssX + "%";
+      el.style.bottom = "26%";
+      court.appendChild(el);
+      setTimeout(function(){ if (el.parentNode) el.parentNode.removeChild(el); }, 700);
     }
-
-    /** 「今タップしたら実際にヒットする」かどうか。onAction()の成功条件と
-        完全に同じ式にする(見た目の判定バー/ボールの光り方と、実際の成否が
-        食い違わないようにするため)。 */
-    function isHittableNow(now){
-      if (phase !== "ballToPlayer") return false;
-      const elapsed = now - ball.flightStart;
-      const inWindow = elapsed >= (duration - WINDOW_MS) && elapsed <= (duration + GRACE_MS);
-      return inWindow && canReach(player.x, ball.x);
+    function litDir(dir){
+      const el = document.querySelector('.hintDir[data-dir="' + dir + '"]');
+      if (!el) return;
+      el.classList.remove("lit");
+      void el.offsetWidth;
+      el.classList.add("lit");
+      setTimeout(function(){ el.classList.remove("lit"); }, 320);
     }
-
     function flash(kind){
-      const f = el().flash;
+      const f = $("flash");
       f.className = "flash " + kind;
       void f.offsetWidth;
       f.classList.add("show");
     }
-
     function bounce(wrap, kind){
       wrap.classList.remove("hit","miss","whiff");
       void wrap.offsetWidth;
       wrap.classList.add(kind);
-      setTimeout(function(){ wrap.classList.remove(kind); }, BOUNCE_MS);
+      setTimeout(function(){ wrap.classList.remove(kind); }, 180);
     }
+    return { judgePop, litDir, flash, bounce };
+  })();
 
-    /** 自分側・相手側で共通の「届くか」判定 */
-    function canReach(receiverX, ballX){
-      return Math.abs(receiverX - ballX) <= REACH_RADIUS;
+  /* =========================================================
+     9. TennisGame — ラリーの進行(状態機械)と描画
+        phase: "serve" | "ballToPlayer" | "hitstop" | "ballToOpponent" | "returning" | "pointOver" | "gameOver"
+        連続系(自動移動・描画)は毎フレーム、離散系(ラリーの進行)はタイマーで進める。
+     ========================================================= */
+  const TennisGame = (function(){
+    const REACH_RADIUS = 17;      // 自分の届く範囲(論理単位)
+    const DURATION_STEP = 40;     // ラリーが続くほど速くなる
+    const RETURN_PAUSE = 220;     // 相手が打ち返すまでの間(テル表示用に少し長め)
+    const HITSTOP_MS = 90;        // 打った瞬間ボールが止まる(演出 + スワイプ読み取りの猶予)
+    const SWIPE_WINDOW_MS = 160;  // スイング後、コースを受け付ける時間
+
+    let phase = "serve";
+    let opp = DEFAULT_OPPONENT;
+    let exchanges = 0;            // このポイントで自分が返した回数(球速の基準)
+
+    const player = { x: 50, targetX: 50, min: Court.X_MIN, max: Court.X_MAX, running: null, cooldownUntil: 0 };
+    const opponent = { x: 50, min: Court.X_MIN, max: Court.X_MAX, running: null };
+    const ball = { x:50, y:Court.OPPONENT_Y, fromX:50, fromY:Court.OPPONENT_Y,
+      targetX:50, targetY:Court.PLAYER_Y, flightStart:0, flightDuration:1200, arc:42 };
+
+    let rafId = null, lastTick = 0;
+    let autoMissTimer = null, arriveTimer = null, hitstopTimer = null;
+    let opponentReactAt = 0;
+
+    const score = { player:0, opponent:0 };
+    let lastLabels = scoreLabels(0, 0);
+    let lastSmartReturn = false;
+    let lastShot = null;          // 直近の自分のショット { tier, deltaMs, course, targetX, duration, arc }
+    let pendingShot = null;       // ヒットストップ中の暫定ショット
+    let forcedCourse = null;      // テスト用: 次のスイングのコースを固定
+    let hitstopUntil = 0, courseWindowUntil = 0, swingAt = 0;
+    const rally = { count:0, longest:0, perfects:0 };
+
+    function el(){
+      return { ball: $("ball"), shadow: $("ballShadow"), reach: $("reach"),
+        player: $("playerWrap"), opponent: $("opponentWrap") };
     }
-
-    /** 打った瞬間の接触位置のズレから、打球の狙いどころを決める。
-        ボールの左に立って打てば相手コートの右へ、右に立てば左へ飛ぶ
-        (実際のテニスで体の入り方が打球方向を決めるのに近い)。
-        aimDir(-1/0/+1)は打つ瞬間に押している左右キーで、押した方向に
-        さらに狙いを寄せる(=プレイヤーが意図して打ち分けられるようにする)。 */
-    function aimFromContact(receiverX, ballX, aimDir){
-      const offset = receiverX - ballX;           // 概ね -REACH〜+REACH
-      const target = 50 - offset * 2.6 + (aimDir || 0) * AIM_KEY_BIAS;
-      return clamp(target, 6, 94);
+    function rallyBase(){
+      return Math.max(opp.minDuration, opp.startDuration - exchanges * DURATION_STEP);
     }
-
-    /** かしこい返球: プレイヤーの現在位置から一番遠いコートの端を狙い、
-        追いつくために大きく動かざるを得ない状況を作る。 */
-    function aimAwayFromPlayer(playerX){
-      return playerX < 50 ? 90 : 10;
+    function clearTimers(){
+      clearTimeout(autoMissTimer); clearTimeout(arriveTimer); clearTimeout(hitstopTimer);
     }
+    function paintRally(){ $("rallyCount").textContent = String(rally.count); }
 
+    /* ---- 描画 ---- */
     function renderCourt(now){
       const e = el();
       e.player.style.left = Court.toCssX(player.x) + "%";
       e.opponent.style.left = Court.toCssX(opponent.x) + "%";
+      e.reach.style.left = Court.toCssX(player.x) + "%";
 
-      if (phase === "ballToPlayer" || phase === "ballToOpponent") {
-        const t = clamp((now - ball.flightStart) / ball.flightDuration, 0, 1);
-        ball.x = lerp(ball.fromX, ball.targetX, t);
-        ball.y = lerp(ball.fromY, ball.targetY, t);
-        const hover = ARC_HEIGHT * 4 * t * (1 - t);
+      if (phase === "ballToPlayer" || phase === "ballToOpponent" || phase === "hitstop") {
+        if (phase !== "hitstop") {
+          const t = clamp((now - ball.flightStart) / ball.flightDuration, 0, 1);
+          ball.x = lerp(ball.fromX, ball.targetX, t);
+          ball.y = lerp(ball.fromY, ball.targetY, t);
+        }
+        const t2 = clamp((now - ball.flightStart) / ball.flightDuration, 0, 1);
+        const hover = (phase === "hitstop") ? 0 : ball.arc * 4 * t2 * (1 - t2);
         const scale = 1 + hover / 140;
-
         e.ball.style.left = Court.toCssX(ball.x) + "%";
         e.ball.style.top = ball.y + "%";
         e.ball.style.transform = "translateY(-" + hover.toFixed(1) + "px) scale(" + scale.toFixed(2) + ")";
-
         e.shadow.style.left = Court.toCssX(ball.x) + "%";
         e.shadow.style.top = ball.y + "%";
-        e.shadow.style.opacity = String(clamp(1 - hover / ARC_HEIGHT, .15, 1));
-        e.shadow.style.transform = "scale(" + clamp(1 - hover / (ARC_HEIGHT * 1.6), .4, 1).toFixed(2) + ")";
+        e.shadow.style.opacity = String(clamp(1 - hover / ball.arc, .15, 1));
+        e.shadow.style.transform = "scale(" + clamp(1 - hover / (ball.arc * 1.6), .4, 1).toFixed(2) + ")";
       }
-
-      // 打てる範囲バー: ボールが自分に向かっているあいだだけ位置を追従表示し、
-      // 実際にタップすればヒットする瞬間だけ強く光らせる(判定式と共通のisHittableNow)。
-      e.hitZone.style.left = Court.toCssX(player.x) + "%";
-      const ready = isHittableNow(now);
-      e.hitZone.classList.toggle("visible", phase === "ballToPlayer");
-      e.hitZone.classList.toggle("ready", ready);
-      e.ball.classList.toggle("ready", ready);
     }
 
-    /* ---- プレイヤー移動(常時。ラリー中でも移動できる) ---- */
-    function updatePlayer(dtMs){
-      let dir = 0;
-      if (keys.left) dir -= 1;
-      if (keys.right) dir += 1;
-      if (dir !== 0) player.x = clamp(player.x + dir * PLAYER_SPEED * dtMs, player.min, player.max);
-      playerMoving = dir !== 0;
-      if (dir !== 0) playerFacing = dir;
+    /* ---- 自動移動(自分) ---- */
+    function updatePlayerAuto(now, dt){
+      let dir = null;
+      if (phase === "ballToPlayer") {
+        if (now >= ball.flightStart + AutoMover.REACTION_MS) {
+          dir = AutoMover.step(player, player.targetX, AutoMover.SPEED, dt);
+        }
+      } else if (phase === "ballToOpponent") {
+        player.targetX = 50;
+        dir = AutoMover.step(player, 50, AutoMover.RECOVER_SPEED, dt);
+      }
+      player.running = dir;
+      setPose(el().player, dir === "left" ? "runL" : dir === "right" ? "runR" : "idle");
     }
 
-    /* ---- 相手AI(ballToOpponent の間だけ、予測着地Xへ向けて動く) ---- */
-    function updateOpponent(now, dtMs){
-      if (phase !== "ballToOpponent" || now < opponentReactAt) { opponentMoving = false; return; }
-      const dx = ball.targetX - opponent.x;
-      const step = AI_SPEED * dtMs;
-      if (Math.abs(dx) <= step) { opponent.x = ball.targetX; opponentMoving = false; return; }
-      const dir = Math.sign(dx);
-      opponent.x += dir * step;
-      opponentMoving = true;
-      opponentFacing = dir;
+    /* ---- 相手AI(ballToOpponent の間だけ、着地点へ向けて動く) ---- */
+    function updateOpponent(now, dt){
+      let dir = null;
+      if (phase === "ballToOpponent" && now >= opponentReactAt) {
+        dir = AutoMover.step(opponent, ball.targetX, opp.speed, dt);
+      }
+      opponent.running = dir;
+      setPose(el().opponent, dir === "left" ? "runL" : dir === "right" ? "runR" : "idle");
     }
 
-    function launchToPlayer(){
+    /* ---- ラリーの進行 ---- */
+    function launchToPlayer(targetX, duration, arc){
       phase = "ballToPlayer";
       ball.fromX = opponent.x; ball.fromY = Court.OPPONENT_Y;
-      ball.targetX = clamp(player.x + (rand() - 0.5) * 30, 8, 92); // 相手の返球先(素朴なランダム)
+      ball.targetX = clamp(targetX, 4, 96);
       ball.targetY = Court.PLAYER_Y;
       ball.flightStart = performance.now();
       ball.flightDuration = duration;
+      ball.arc = arc || 42;
+      player.targetX = clamp(ball.targetX - AutoMover.STANCE_OFFSET, player.min, player.max);
       $("ball").classList.remove("hidden");
-
+      $("reach").classList.add("armed");
       clearTimeout(autoMissTimer);
       autoMissTimer = setTimeout(function(){
-        if (phase === "ballToPlayer") miss();
-      }, duration + GRACE_MS);
+        if (phase === "ballToPlayer") miss("late");
+      }, duration + ShotSystem.LATE_MS);
     }
 
-    function launchToOpponent(targetX){
+    function serve(){
+      exchanges = 0;
+      rally.count = 0; paintRally();
+      const targetX = 50 + (rand() - 0.5) * 30;
+      launchToPlayer(targetX, opp.startDuration, 42);
+    }
+
+    function launchToOpponent(shot){
       phase = "ballToOpponent";
-      ball.fromX = player.x; ball.fromY = Court.PLAYER_Y;
-      ball.targetX = targetX;
+      ball.fromX = ball.x; ball.fromY = Court.PLAYER_Y;
+      ball.targetX = shot.targetX;
       ball.targetY = Court.OPPONENT_Y;
       ball.flightStart = performance.now();
-      ball.flightDuration = duration;
-      opponentReactAt = ball.flightStart + AI_REACTION_MS;
+      ball.flightDuration = shot.duration;
+      ball.arc = shot.arc;
+      opponentReactAt = ball.flightStart + opp.reactionMs;
+      $("reach").classList.remove("armed");
+      clearTimeout(arriveTimer);
+      arriveTimer = setTimeout(opponentArrives, shot.duration);
     }
 
     function opponentArrives(){
-      const reached = canReach(opponent.x, ball.targetX);
+      if (phase !== "ballToOpponent") return;
+      const reached = canReach(opponent.x, ball.targetX, opp.reach);
       if (!reached) { pointFor("player"); return; }
-      bounce(el().opponent, "hit");
-      triggerSwing("opponent");
-      lastSmartReturn = rand() < SMART_RETURN_CHANCE;
+      Fx.bounce(el().opponent, "hit");
+      Sfx.bounce();
+      lastSmartReturn = rand() < opp.smartChance;
       const targetX = lastSmartReturn ? aimAwayFromPlayer(player.x) : aimFromContact(opponent.x, ball.targetX);
-      setTimeout(function(){
-        duration = Math.max(MIN_DURATION, duration - DURATION_STEP);
-        phase = "ballToPlayer";
-        ball.fromX = opponent.x; ball.fromY = Court.OPPONENT_Y;
-        ball.targetX = clamp(targetX, 8, 92);
-        ball.targetY = Court.PLAYER_Y;
-        ball.flightStart = performance.now();
-        ball.flightDuration = duration;
-        $("ball").classList.remove("hidden");
-        clearTimeout(autoMissTimer);
-        autoMissTimer = setTimeout(function(){
-          if (phase === "ballToPlayer") miss();
-        }, duration + GRACE_MS);
+      const duration = Math.max(opp.minDuration * 0.7, rallyBase() * opp.durationMul);
+      phase = "returning"; // 相手が構えている間(RETURN_PAUSE)は入力を受け付けない
+      ball.x = ball.targetX; ball.y = Court.OPPONENT_Y;
+      arriveTimer = setTimeout(function(){
+        launchToPlayer(targetX, duration, 42);
       }, RETURN_PAUSE);
     }
 
-    function onAction(){
-      if (phase !== "ballToPlayer") return;
+    /** タップ/スペース。ballToPlayer の間だけ意味を持つ。戻り値は判定ティア(or null) */
+    function swing(now){
+      if (phase !== "ballToPlayer") return null;
+      now = (typeof now === "number") ? now : performance.now();
+      if (now < player.cooldownUntil) return null;
+      const arrivalAt = ball.flightStart + ball.flightDuration;
+      const delta = now - arrivalAt;
+      const inReach = canReach(player.x, ball.x, REACH_RADIUS);
+      const tier = inReach ? ShotSystem.judge(delta) : "whiff";
+      const cssX = Court.toCssX(player.x);
+
+      if (tier === "whiff") {
+        player.cooldownUntil = now + ShotSystem.SWING_COOLDOWN_MS;
+        lastShot = { tier:"whiff", deltaMs: delta, course:null, targetX:null, duration:null, arc:null };
+        Fx.bounce(el().player, "whiff");
+        Fx.judgePop("whiff", cssX);
+        Sfx.whiff();
+        return "whiff";
+      }
+
+      // ヒット: ボールを止め(ヒットストップ)、コースは後追いで受け付ける
+      clearTimeout(autoMissTimer);
+      phase = "hitstop";
+      swingAt = now;
+      hitstopUntil = now + HITSTOP_MS;
+      courseWindowUntil = now + SWIPE_WINDOW_MS;
+      exchanges += 1;
+      rally.count += 1; paintRally();
+      if (rally.count > rally.longest) rally.longest = rally.count;
+      if (tier === "perfect") rally.perfects += 1;
+      const course = forcedCourse || "straight";
+      forcedCourse = null;
+      pendingShot = ShotSystem.resolve(tier, course, shotCtx());
+      lastShot = { tier: tier, deltaMs: delta, course: course, targetX: pendingShot.targetX,
+        duration: pendingShot.duration, arc: pendingShot.arc };
+      Fx.flash("good");
+      Fx.bounce(el().player, "hit");
+      Fx.judgePop(tier === "ok" ? (delta < 0 ? "early" : "late") : tier, cssX);
+      Sfx.hit(tier);
+      hitstopTimer = setTimeout(fire, HITSTOP_MS);
+      return tier;
+    }
+    function shotCtx(){
+      return { rallyBase: rallyBase(), minDuration: opp.minDuration, opponentX: opponent.x };
+    }
+    function fire(){
+      if (phase !== "hitstop" || !pendingShot) return;
+      const shot = pendingShot;
+      pendingShot = null;
+      launchToOpponent(shot);
+    }
+
+    /** スワイプ/矢印キーで決めたコース。スイング直後の窓(SWIPE_WINDOW_MS)内だけ効く */
+    function applyCourse(course){
+      if (!course) return false;
       const now = performance.now();
-      const elapsed = now - ball.flightStart;
-      const early = duration - WINDOW_MS;
-      const late = duration + GRACE_MS;
-      const inWindow = elapsed >= early && elapsed <= late;
-      const inReach = canReach(player.x, ball.x);
-
-      if (!inReach) { bounce(el().player, "whiff"); triggerSwing("player"); miss(); return; }
-      if (!inWindow) { bounce(el().player, "whiff"); triggerSwing("player"); miss(); return; }
-      hit();
+      if (now > courseWindowUntil) return false;
+      if (phase === "hitstop" && pendingShot) {
+        pendingShot = ShotSystem.resolve(pendingShot.tier, course, shotCtx());
+        lastShot.course = course; lastShot.targetX = pendingShot.targetX;
+        lastShot.duration = pendingShot.duration; lastShot.arc = pendingShot.arc;
+        Fx.litDir(course);
+        return true;
+      }
+      if (phase === "ballToOpponent" && lastShot && lastShot.tier !== "whiff") {
+        // 発射直後(飛行10%未満)なら飛行中の球の行き先を差し替える
+        const shot = ShotSystem.resolve(lastShot.tier, course, shotCtx());
+        ball.targetX = shot.targetX; ball.flightDuration = shot.duration; ball.arc = shot.arc;
+        lastShot.course = course; lastShot.targetX = shot.targetX;
+        lastShot.duration = shot.duration; lastShot.arc = shot.arc;
+        clearTimeout(arriveTimer);
+        arriveTimer = setTimeout(opponentArrives, Math.max(0, ball.flightStart + shot.duration - now));
+        Fx.litDir(course);
+        return true;
+      }
+      return false;
     }
 
-    function hit(){
-      clearTimeout(autoMissTimer);
-      flash("good");
-      bounce(el().player, "hit");
-      triggerSwing("player");
-      let aimDir = 0;
-      if (keys.left) aimDir -= 1;
-      if (keys.right) aimDir += 1;
-      const targetX = aimFromContact(player.x, ball.x, aimDir);
-      duration = Math.max(MIN_DURATION, duration - DURATION_STEP);
-      launchToOpponent(targetX);
-      setTimeout(function(){
-        if (phase === "ballToOpponent") opponentArrives();
-      }, duration);
-    }
-
-    function miss(){
+    function miss(reason){
+      if (phase !== "ballToPlayer") return;
       phase = "pointOver";
-      clearTimeout(autoMissTimer);
-      flash("bad");
+      clearTimers();
+      Fx.flash("bad");
+      Fx.bounce(el().player, "miss");
+      $("reach").classList.remove("armed");
+      lastShot = { tier:"miss", deltaMs:null, course:null, targetX:null, duration:null, arc:null, reason: reason };
       pointFor("opponent");
     }
 
     function pointFor(who){
       phase = "pointOver";
+      clearTimers();
       score[who] += 1;
       lastLabels = scoreLabels(score.player, score.opponent);
       $("playerScore").textContent = lastLabels.forLabel;
       $("opponentScore").textContent = lastLabels.againstLabel;
       $("deuceNote").hidden = !lastLabels.deuce;
+      if (who === "player") Sfx.pointWin(); else Sfx.pointLose();
       if (lastLabels.gameOver) {
-        setTimeout(finish, 500);
+        phase = "gameOver";
+        setTimeout(finish, 600);
       } else {
-        setTimeout(function(){ phase = "serve"; launchToPlayer(); }, 500);
+        setTimeout(function(){ phase = "serve"; serve(); }, 700);
       }
     }
 
@@ -570,122 +791,178 @@
       $("rankVal").textContent = win ? "WIN" : "LOSE";
       $("resultPlayer").textContent = String(score.player);
       $("resultOpponent").textContent = String(score.opponent);
+      $("resultRally").textContent = String(rally.longest);
+      $("resultPerfect").textContent = String(rally.perfects);
+      if (win) Sfx.win(); else Sfx.lose();
       show("result");
       stopLoop();
     }
 
-    function begin(){
+    function begin(opts){
+      opts = opts || {};
+      opp = opts.opponent || DEFAULT_OPPONENT;
+      clearTimers();
       score.player = 0; score.opponent = 0;
       lastLabels = scoreLabels(0, 0);
-      lastSmartReturn = false;
-      duration = START_DURATION;
-      player.x = 50; opponent.x = 50;
+      lastSmartReturn = false; lastShot = null; pendingShot = null; forcedCourse = null;
+      exchanges = 0;
+      rally.count = 0; rally.longest = 0; rally.perfects = 0; paintRally();
+      player.x = 50; player.targetX = 50; player.cooldownUntil = 0; player.running = null;
+      opponent.x = 50; opponent.running = null;
       phase = "serve";
       $("playerScore").textContent = lastLabels.forLabel;
       $("opponentScore").textContent = lastLabels.againstLabel;
       $("deuceNote").hidden = true;
-      playerMoving = false; playerFacing = -1; playerSwingUntil = 0;
-      opponentMoving = false; opponentFacing = -1; opponentSwingUntil = 0;
-      playerVisual.pose = null; playerVisual.flip = null;
-      opponentVisual.pose = null; opponentVisual.flip = null;
-      updateVisuals(performance.now());
-      el().player.classList.remove("hit","miss","whiff");
-      el().opponent.classList.remove("hit","miss","whiff");
-      $("ball").classList.remove("hidden","ready");
-      $("hitZone").classList.remove("visible","ready");
+      $("playerImg").src = charFile(selectedChar);
+      $("opponentImg").src = opponentFile(selectedChar);
+      const e = el();
+      e.player.classList.remove("hit","miss","whiff"); setPose(e.player, "idle");
+      e.opponent.classList.remove("hit","miss","whiff"); setPose(e.opponent, "idle");
+      $("reach").classList.remove("armed");
+      $("ball").classList.remove("hidden");
       show("play");
       startLoop();
-      setTimeout(launchToPlayer, 500);
+      setTimeout(function(){ if (phase === "serve") serve(); }, 600);
     }
 
-    let lastTick = 0;
     function loop(now){
-      const dt = lastTick ? (now - lastTick) : 16;
+      const dt = lastTick ? Math.min(50, now - lastTick) : 16;
       lastTick = now;
-      updatePlayer(dt);
+      updatePlayerAuto(now, dt);
       updateOpponent(now, dt);
       renderCourt(now);
-      updateVisuals(now);
       rafId = requestAnimationFrame(loop);
     }
-    function startLoop(){ lastTick = 0; rafId = requestAnimationFrame(loop); }
+    function startLoop(){ stopLoop(); lastTick = 0; rafId = requestAnimationFrame(loop); }
     function stopLoop(){ if (rafId) cancelAnimationFrame(rafId); rafId = null; }
 
-    function setKey(name, down){ keys[name] = down; }
+    function forceCourse(course){ forcedCourse = course || null; }
 
     // Playwrightなど外部から検証できるように、判定に必要な状態を公開する
-    // (RingGame/EchoGame の debugState() と同じ考え方)
     function debugState(){
       return {
         phase: phase,
+        mode: "match",
+        opponentId: opp.id,
         ball: { x: ball.x, y: ball.y, fromX: ball.fromX, fromY: ball.fromY,
           targetX: ball.targetX, targetY: ball.targetY,
-          flightStart: ball.flightStart, flightDuration: ball.flightDuration },
-        player: { x: player.x, min: player.min, max: player.max },
-        opponent: { x: opponent.x, targetX: ball.targetX, smartReturn: lastSmartReturn },
+          flightStart: ball.flightStart, flightDuration: ball.flightDuration,
+          arrivalAt: ball.flightStart + ball.flightDuration, arc: ball.arc },
+        player: { x: player.x, targetX: player.targetX, min: player.min, max: player.max,
+          running: player.running, cooldownUntil: player.cooldownUntil },
+        opponent: { id: opp.id, x: opponent.x, targetX: ball.targetX, smartReturn: lastSmartReturn,
+          running: opponent.running, reach: opp.reach },
+        lastShot: lastShot,
+        pendingCourse: pendingShot ? pendingShot.course : null,
+        hitstopUntil: hitstopUntil, courseWindowUntil: courseWindowUntil, swingAt: swingAt,
+        exchanges: exchanges,
+        rally: { count: rally.count, longest: rally.longest, perfects: rally.perfects },
         reachRadius: REACH_RADIUS,
-        windowMs: WINDOW_MS, graceMs: GRACE_MS,
         score: {
           pointsPlayer: score.player, pointsOpponent: score.opponent,
           playerLabel: lastLabels.forLabel, opponentLabel: lastLabels.againstLabel,
           deuce: !!lastLabels.deuce, advantage: lastLabels.advantage || null,
           gameOver: !!lastLabels.gameOver, winner: lastLabels.winner || null,
         },
+        constants: { perfectMs: ShotSystem.PERFECT_MS, goodMs: ShotSystem.GOOD_MS,
+          earlyMs: ShotSystem.EARLY_MS, lateMs: ShotSystem.LATE_MS,
+          swipeWindowMs: SWIPE_WINDOW_MS, hitstopMs: HITSTOP_MS, cooldownMs: ShotSystem.SWING_COOLDOWN_MS,
+          reachRadius: REACH_RADIUS },
       };
     }
 
-    return {
-      begin: begin, onAction: onAction, setKey: setKey, debugState: debugState, setRng: setRng,
-      scoreLabels: scoreLabels,
-    };
+    return { begin, swing, applyCourse, forceCourse, debugState };
   })();
 
   /* =========================================================
-     6. 入力
-     移動(左右キー/ボタン)は押している間ずっと有効、打つ(タップ/クリック/
-     スペース)は1回きりのイベント。別の入力として扱う。
+     10. Input — タップ即スイング、コースは後追い
+        pointerdown の瞬間にスイング(タイミング判定)し、その後 SWIPE_MIN_PX 以上動いたら
+        スワイプ方向をコースとして適用する。ヒットストップ中に読むので遅延として感じない。
+        キーボードは Space/Enter/J でスイング、矢印キー(押しっぱなし優先)でコース。
      ========================================================= */
-  const KEY_MAP = { ArrowLeft:"left", a:"left", A:"left", ArrowRight:"right", d:"right", D:"right" };
-  window.addEventListener("keydown", function(e){
-    const dir = KEY_MAP[e.key];
-    if (dir) { TennisGame.setKey(dir, true); e.preventDefault(); return; }
-    if (e.code === "Space" && $("play").classList.contains("active")) {
-      e.preventDefault();
-      TennisGame.onAction();
+  const Input = (function(){
+    const SWIPE_MIN_PX = 18;
+    const SWIPE_WINDOW_MS = 160;
+    const court = $("court");
+    let gesture = null;
+    let heldDir = null;
+
+    function resolveCourse(dx, dy){
+      if (Math.abs(dy) > Math.abs(dx) * 1.2 && dy < 0) return "lob";
+      return dx < 0 ? "left" : "right";
     }
-  });
-  window.addEventListener("keyup", function(e){
-    const dir = KEY_MAP[e.key];
-    if (dir) { TennisGame.setKey(dir, false); e.preventDefault(); }
-  });
+    function settle(g, course){
+      if (g.resolved) return;
+      g.resolved = true;
+      TennisGame.applyCourse(course);
+    }
 
-  $("court").addEventListener("pointerdown", function(e){
-    e.preventDefault();
-    TennisGame.onAction();
-  });
+    court.addEventListener("pointerdown", function(e){
+      e.preventDefault();
+      if (gesture) return;                      // 2本目の指は無視(二重発火防止)
+      const g = { id: e.pointerId, x0: e.clientX, y0: e.clientY, resolved: false };
+      gesture = g;
+      try { court.setPointerCapture(e.pointerId); } catch (err) {}
+      TennisGame.swing(performance.now());
+      if (heldDir) settle(g, heldDir);          // 矢印キーを押しながらタップ/スペース
+      setTimeout(function(){ settle(g, "straight"); if (gesture === g) gesture = null; }, SWIPE_WINDOW_MS);
+    });
+    court.addEventListener("pointermove", function(e){
+      const g = gesture;
+      if (!g || g.resolved || e.pointerId !== g.id) return;
+      const dx = e.clientX - g.x0, dy = e.clientY - g.y0;
+      if (Math.hypot(dx, dy) >= SWIPE_MIN_PX) settle(g, resolveCourse(dx, dy));
+    });
+    function end(e){
+      const g = gesture;
+      if (!g || e.pointerId !== g.id) return;
+      settle(g, "straight");
+      gesture = null;
+    }
+    court.addEventListener("pointerup", end);
+    court.addEventListener("pointercancel", end);
 
-  function bindHold(btn, dir){
-    const start = function(e){ e.preventDefault(); TennisGame.setKey(dir, true); };
-    const end = function(e){ e.preventDefault(); TennisGame.setKey(dir, false); };
-    btn.addEventListener("pointerdown", start);
-    btn.addEventListener("pointerup", end);
-    btn.addEventListener("pointerleave", end);
-    btn.addEventListener("pointercancel", end);
-  }
-  bindHold($("btnLeft"), "left");
-  bindHold($("btnRight"), "right");
+    const DIR_KEYS = { ArrowLeft:"left", a:"left", A:"left", ArrowRight:"right", d:"right", D:"right",
+      ArrowUp:"lob", w:"lob", W:"lob" };
+    const SWING_CODES = { Space:1, Enter:1, KeyJ:1 };
+    window.addEventListener("keydown", function(e){
+      const dir = DIR_KEYS[e.key];
+      if (dir) {
+        heldDir = dir;
+        if ($("play").classList.contains("active")) TennisGame.applyCourse(dir);
+        e.preventDefault();
+        return;
+      }
+      if (SWING_CODES[e.code] && $("play").classList.contains("active")) {
+        e.preventDefault();
+        if (e.repeat) return;
+        TennisGame.swing(performance.now());
+        if (heldDir) TennisGame.applyCourse(heldDir);
+      }
+    });
+    window.addEventListener("keyup", function(e){
+      if (DIR_KEYS[e.key] === heldDir) heldDir = null;
+    });
+
+    return { resolveCourse };
+  })();
 
   /* =========================================================
-     7. 画面の行き来
+     11. 画面の行き来
      ========================================================= */
-  $("startBtn").addEventListener("click", function(){ TennisGame.begin(); });
-  $("retryBtn").addEventListener("click", function(){ TennisGame.begin(); });
+  $("startBtn").addEventListener("click", function(){ Sfx.unlock(); TennisGame.begin(); });
+  $("retryBtn").addEventListener("click", function(){ Sfx.unlock(); TennisGame.begin(); });
   $("titleBtn").addEventListener("click", function(){ show("title"); });
 
   paintCharRow();
   show("title");
 
-  window.__tennis = TennisGame; // Playwright検証用
+  // Playwright検証用
+  window.__tennis = {
+    begin: TennisGame.begin, swing: TennisGame.swing, applyCourse: TennisGame.applyCourse,
+    forceCourse: TennisGame.forceCourse, debugState: TennisGame.debugState,
+    setRng: setRng, scoreLabels: scoreLabels, sfx: Sfx,
+  };
 })();
 </script>
 </body>
