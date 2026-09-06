@@ -15,6 +15,12 @@
   *{ box-sizing:border-box; }
   html,body{ margin:0; height:100%; background:#0b1020; color:#fff;
     font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif; }
+  /* タイトル・結果画面の背景。fal.ai生成(art/title-bg.png)で、中央は暗く
+     余白にしてあり、四隅にラケット・ボールの光跡がうっすら入っている構図。
+     コートを敷いたプレイ中(#play)は視認性を優先して薄暗くするだけに留める。 */
+  #app{ background:#0b1020 url("art/title-bg.png") center / cover no-repeat; }
+  /* プレイ中は背景画像を薄暗くする半透明の幕を重ねる(コート・文字の視認性優先) */
+  #play{ background:rgba(11,16,32,.55); }
   #app{ position:relative; min-height:100dvh; width:100%; overflow:hidden; touch-action:none; }
   .screen{ position:absolute; inset:0; display:none; flex-direction:column; align-items:center;
     justify-content:center; gap:18px; padding:24px; text-align:center; }
@@ -23,14 +29,35 @@
   h1{ font-size:28px; margin:0; letter-spacing:.02em; }
   .sub{ color:#9aa4c4; font-size:13px; margin:0; }
 
-  .charRow{ display:flex; gap:16px; }
+  /* タイトル画面の操作説明パネル。文章の羅列にせず、行ごとに絵文字アイコンを
+     置いて視認性を上げる(初見のプレイヤーがルールをすぐ把握できるように)。 */
+  .howTo{ display:flex; flex-direction:column; gap:6px; padding:12px 16px; border-radius:14px;
+    background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12);
+    max-width:360px; width:100%; }
+  .howRow{ display:flex; align-items:center; gap:9px; font-size:12px; color:#cbd5e1; text-align:left; }
+  .howIcon{ font-size:15px; flex-shrink:0; width:20px; text-align:center; }
+
+  .charRow{ display:flex; gap:12px; flex-wrap:wrap; justify-content:center; }
   .charBtn{ background:rgba(255,255,255,.06); border:2px solid rgba(255,255,255,.14);
-    border-radius:18px; padding:14px; display:flex; flex-direction:column; align-items:center;
-    gap:8px; cursor:pointer; color:#fff; width:130px; }
-  .charBtn img{ width:88px; height:auto; image-rendering:-webkit-optimize-contrast; }
+    border-radius:18px; padding:12px 10px; display:flex; flex-direction:column; align-items:center;
+    gap:4px; cursor:pointer; color:#fff; width:112px; }
+  /* 高さを体格が一番大きいキャラ(scale最大)に合わせて固定し、キャラ画像の
+     大小に関わらず名前・ステータス行の位置を揃える(=体格差だけが目に入る) */
+  .charImgBox{ height:88px; display:flex; align-items:flex-end; justify-content:center; }
+  .charBtn img{ height:auto; image-rendering:-webkit-optimize-contrast; }
   .charBtn.selected{ border-color:var(--accent); box-shadow:0 0 22px rgba(56,189,248,.45);
     background:rgba(56,189,248,.12); }
   .charBtn .cname{ font-size:13px; font-weight:700; }
+  .charBtn .crole{ font-size:10px; color:var(--accent2); font-weight:700; margin-bottom:2px; }
+
+  .statBox{ width:100%; display:flex; flex-direction:column; gap:3px; }
+  .statRow{ display:flex; align-items:center; gap:4px; }
+  .statLabel{ font-size:8px; color:#9aa4c4; width:34px; text-align:right; flex-shrink:0; white-space:nowrap; }
+  .statBar{ flex:1; height:5px; border-radius:999px; background:rgba(255,255,255,.12); overflow:hidden; }
+  .statFill{ display:block; height:100%; border-radius:999px; }
+  .stat-speed{ background:#7dd3fc; }
+  .stat-power{ background:#fb923c; }
+  .stat-stamina{ background:#34d399; }
 
   .bigBtn{ padding:16px 40px; border-radius:16px; border:none; font-size:18px; font-weight:800;
     color:#0b1020; background:linear-gradient(135deg,var(--accent),var(--accent2));
@@ -50,6 +77,18 @@
     color:#fde68a; padding:3px 10px; border-radius:999px; background:rgba(253,230,138,.14);
     border:1px solid rgba(253,230,138,.4); }
   .deuceNote[hidden]{ display:none; }
+  .oppName{ display:block; font-size:10px; font-weight:400; color:#9aa4c4; }
+
+  /* スタミナバー: 動くほど減り、止まると回復する。空になると操作が重くなる
+     (=キャラのstamina statによる「操作性の違い」を見た目でも実感できるように)。 */
+  .staminaWrap{ display:flex; align-items:center; gap:8px; width:100%; max-width:460px; }
+  .staminaLabel{ font-size:10px; color:#9aa4c4; white-space:nowrap; flex-shrink:0; }
+  .staminaBar{ flex:1; height:8px; border-radius:999px; background:rgba(255,255,255,.12); overflow:hidden; }
+  .staminaFill{ display:block; height:100%; border-radius:999px;
+    background:linear-gradient(90deg,#34d399,#7dd3fc); transition:width .1s linear, background .2s; }
+  .staminaFill.low{ background:linear-gradient(90deg,#f87171,#fb923c);
+    animation:staminaPulse .5s ease-in-out infinite alternate; }
+  @keyframes staminaPulse{ from{ opacity:1; } to{ opacity:.5; } }
 
   /* テニスコート風の背景。芝(グリーン)の地に、シングルスのサイドライン・
      サービスラインを白線で描く。実寸どおりの比率ではなく、あくまで
@@ -139,9 +178,15 @@
   <section id="title" class="screen active">
     <h1>コート・ラリー</h1>
     <p class="sub">左右に動いてボールに合わせ、タイミングよく打ち返そう。</p>
+    <div class="howTo">
+      <div class="howRow"><span class="howIcon">🕹️</span><span>← → / A D / 画面のボタンで左右移動</span></div>
+      <div class="howRow"><span class="howIcon">👆</span><span>タップ・クリック・スペースキーで打つ</span></div>
+      <div class="howRow"><span class="howIcon">💡</span><span>足元のバーとボールが光ったら打ち頃のサイン</span></div>
+      <div class="howRow"><span class="howIcon">🎯</span><span>打つ瞬間に押した左右キーで狙う方向を変えられる</span></div>
+      <div class="howRow"><span class="howIcon">⚡</span><span>動き続けるとスタミナが減り、足が遅くなる</span></div>
+    </div>
     <div class="charRow" id="charRow"></div>
     <button class="bigBtn" id="startBtn">はじめる</button>
-    <p class="tapHint">← → / A D で移動　・　タップ / クリック / スペースで打つ</p>
   </section>
 
   <!-- ================= プレイ ================= -->
@@ -149,7 +194,11 @@
     <div class="hud">
       <span class="you">あなた<b id="playerScore">0</b></span>
       <span class="deuceNote" id="deuceNote" hidden>デュース</span>
-      <span class="cpu">相手<b id="opponentScore">0</b></span>
+      <span class="cpu">相手<span class="oppName" id="opponentName"></span><b id="opponentScore">0</b></span>
+    </div>
+    <div class="staminaWrap">
+      <span class="staminaLabel">スタミナ</span>
+      <span class="staminaBar"><span class="staminaFill" id="staminaFill"></span></span>
     </div>
     <div class="court" id="court">
       <div class="netLine"></div>
@@ -206,14 +255,36 @@
   // ものを元のLINEスタンプ(stamp_01_funifuni2026.png / stamp_02_kotokoto2026.png)
   // のシルエット・表情を踏襲しつつ差し替えた。run-left/run-rightは1枚の
   // run画像をCSSで左右反転(--flip)して兼用する(素材は左向きに描かれている)。
+  //
+  // stats(speed/power/stamina)は1〜10のゲームバランス値で、選択画面のバー表示と
+  // 実際のプレイ内容(移動速度・打球の速さ・スタミナ切れ)の両方に使う。
+  // scaleは表示上の体格差(小さい〜大きい)。基準(scale=1)はkotokotoの各stat=6。
+  const STAT_BASELINE = 6;
   const CHARACTERS = [
-    { id:"funifuni", name:"ふにふに",
+    { id:"funifuni", name:"ふにふに", role:"スピード型", scale:0.82,
+      stats:{ speed:9, power:4, stamina:6 },
       idle:"art/funifuni-idle.png", run:"art/funifuni-run.png", swing:"art/funifuni-swing.png" },
-    { id:"kotokoto", name:"ことこと",
-      idle:"art/kotokoto-idle.png", run:"art/kotokoto-run.png", swing:"art/kotokoto-swing.png" }
+    { id:"kotokoto", name:"ことこと", role:"バランス型", scale:1,
+      stats:{ speed:6, power:6, stamina:7 },
+      idle:"art/kotokoto-idle.png", run:"art/kotokoto-run.png", swing:"art/kotokoto-swing.png" },
+    { id:"muchimuchi", name:"むちむち", role:"パワー型", scale:1.32,
+      stats:{ speed:4, power:9, stamina:5 },
+      idle:"art/muchimuchi-idle.png", run:"art/muchimuchi-run.png", swing:"art/muchimuchi-swing.png" }
   ];
   const CHAR_KEY = "tennis-game:character";
   let selectedChar = localStorage.getItem(CHAR_KEY) || CHARACTERS[0].id;
+  if (!CHARACTERS.some(function(c){ return c.id === selectedChar; })) selectedChar = CHARACTERS[0].id;
+
+  const STAT_LABELS = { speed:"スピード", power:"パワー", stamina:"スタミナ" };
+  function statBarsHtml(stats){
+    return Object.keys(STAT_LABELS).map(function(key){
+      const pct = clamp(stats[key] * 10, 0, 100);
+      return '<div class="statRow">' +
+        '<span class="statLabel">' + STAT_LABELS[key] + '</span>' +
+        '<span class="statBar"><span class="statFill stat-' + key + '" style="width:' + pct + '%"></span></span>' +
+        '</div>';
+    }).join("");
+  }
 
   function paintCharRow(){
     const box = $("charRow");
@@ -221,8 +292,14 @@
     CHARACTERS.forEach(function(c){
       const btn = document.createElement("button");
       btn.className = "charBtn" + (c.id === selectedChar ? " selected" : "");
-      btn.innerHTML = '<img src="' + c.idle + '" alt="' + c.name + '">' +
-        '<span class="cname">' + c.name + '</span>';
+      // scaleが体格差(小さい〜大きい)。プレビュー画像にもそのまま反映して
+      // 選択画面の時点で見た目のバラエティが伝わるようにする。
+      btn.innerHTML =
+        '<div class="charImgBox"><img src="' + c.idle + '" alt="' + c.name +
+          '" style="width:' + Math.round(64 * c.scale) + 'px"></div>' +
+        '<span class="cname">' + c.name + '</span>' +
+        '<span class="crole">' + c.role + '</span>' +
+        '<div class="statBox">' + statBarsHtml(c.stats) + '</div>';
       btn.addEventListener("click", function(){
         selectedChar = c.id;
         localStorage.setItem(CHAR_KEY, selectedChar);
@@ -235,8 +312,18 @@
   function findChar(id){
     return CHARACTERS.find(function(x){ return x.id === id; }) || CHARACTERS[0];
   }
-  function opponentOf(id){
-    return CHARACTERS.find(function(x){ return x.id !== id; }) || CHARACTERS[1];
+  /** 対戦相手を選ぶ(3体以上いる場合は自分以外からランダムに1体)。
+      rand引数を通すことでPlaywrightから固定できるようにする(setRngと同じ考え方)。 */
+  function pickOpponent(id, rand){
+    const others = CHARACTERS.filter(function(x){ return x.id !== id; });
+    if (others.length === 0) return CHARACTERS[0];
+    const i = Math.min(others.length - 1, Math.floor(rand() * others.length));
+    return others[i];
+  }
+  /** stat(1〜10)をSTAT_BASELINE基準の倍率にする。移動速度・打球の速さなど
+      「基準キャラを1倍として、そのキャラは何倍か」を統一的に扱うための関数。 */
+  function statMultiplier(statValue){
+    return statValue / STAT_BASELINE;
   }
   /** キャラID + ポーズ名("idle"|"run"|"swing") から画像パスを引く */
   function poseFile(charId, pose){
@@ -292,7 +379,150 @@
   }
 
   /* =========================================================
-     5. ゲーム本体
+     5. Audio — BGM・効果音をWeb Audio APIで自前合成する(外部音源ファイル不要)。
+     AudioContextはユーザー操作の中でしか生成・再開できないため、実際の生成は
+     startBgm()の初回呼び出し(=はじめる/もう一度ボタンのクリックの中)まで遅らせる。
+     ========================================================= */
+  const AudioFX = (function(){
+    let ctx = null, master = null;
+    let bgmOn = false, bgmStep = 0, nextNoteTime = 0, schedTimer = null;
+    const BGM_BPM = 128;
+    const STEP_SEC = 60 / BGM_BPM / 2;   // 8分音符刻み
+    const LOOKAHEAD_SEC = 0.15;          // この秒数だけ先まで予約しておく
+    const SCHED_INTERVAL_MS = 40;
+
+    function ensureCtx(){
+      if (ctx) return ctx;
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      // 96kHzで動くと処理量が倍近くになる実例があったため48kHzに明示的に制限する
+      ctx = new AC({ latencyHint: 0.05, sampleRate: 48000 });
+      master = ctx.createGain();
+      master.gain.value = 0.32;
+      master.connect(ctx.destination);
+      return ctx;
+    }
+    /** ユーザー操作のハンドラ内から必ず呼ぶこと(自動再生ポリシー対策)。
+        Android Chrome等はAudioContextがsuspendedのまま生成されることがある。 */
+    function resume(){
+      const c = ensureCtx();
+      if (c && c.state === "suspended") c.resume();
+      return c;
+    }
+
+    /** 短いプラック音(ポン、と鳴る)。メロディにも効果音にも使う共通の音源。 */
+    function pluck(freq, dur, gainAmt, when, type){
+      const c = ensureCtx();
+      if (!c) return;
+      const t = when != null ? when : c.currentTime;
+      const osc = c.createOscillator();
+      osc.type = type || "triangle";
+      osc.frequency.setValueAtTime(freq, t);
+      const g = c.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(Math.max(gainAmt, 0.001), t + 0.008);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      osc.connect(g); g.connect(master);
+      osc.start(t); osc.stop(t + dur + 0.02);
+    }
+
+    /** 短いノイズバースト(打球のインパクト音・ミスのブザーに使う)。
+        毎回バッファを作り直さず、使い回すと軽い(neon-voidでの実績があるが、
+        ここでは効果音の頻度が低いのでシンプルに毎回生成する)。 */
+    function noiseBurst(dur, gainAmt, when, filterFreq, filterType){
+      const c = ensureCtx();
+      if (!c) return;
+      const t = when != null ? when : c.currentTime;
+      const len = Math.max(1, Math.floor(c.sampleRate * dur));
+      const buf = c.createBuffer(1, len, c.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len);
+      const src = c.createBufferSource();
+      src.buffer = buf;
+      const filt = c.createBiquadFilter();
+      filt.type = filterType || "bandpass";
+      filt.frequency.value = filterFreq || 1800;
+      const g = c.createGain();
+      g.gain.setValueAtTime(gainAmt, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      src.connect(filt); filt.connect(g); g.connect(master);
+      src.start(t); src.stop(t + dur + 0.02);
+    }
+
+    // ---- BGM: ポップだが軽すぎない8ステップのループ(ベース+跳ねるメロディ) ----
+    const BASS_NOTE = 98;                                  // G2相当。1・5拍目の土台
+    const MELODY = [392, 0, 440, 523, 392, 0, 349, 440];   // ソ,休,ラ,ド,ソ,休,ファ,ラ
+    function scheduleStep(step, t){
+      if (step % 4 === 0) pluck(BASS_NOTE, STEP_SEC * 1.9, 0.24, t, "sine");
+      const note = MELODY[step % MELODY.length];
+      if (note) pluck(note, STEP_SEC * 0.9, 0.15, t, "triangle");
+      if (step % 2 === 1) noiseBurst(0.03, 0.06, t, 6000, "highpass"); // 軽いハイハット
+    }
+    function scheduler(){
+      if (!bgmOn) return;
+      const c = ensureCtx();
+      while (nextNoteTime < c.currentTime + LOOKAHEAD_SEC) {
+        scheduleStep(bgmStep, nextNoteTime);
+        nextNoteTime += STEP_SEC;
+        bgmStep = (bgmStep + 1) % MELODY.length;
+      }
+      schedTimer = setTimeout(scheduler, SCHED_INTERVAL_MS);
+    }
+    function startBgm(){
+      const c = resume();
+      if (!c || bgmOn) return;
+      bgmOn = true;
+      bgmStep = 0;
+      nextNoteTime = c.currentTime + 0.05;
+      scheduler();
+    }
+    function stopBgm(){
+      bgmOn = false;
+      clearTimeout(schedTimer);
+    }
+
+    // ---- 効果音 ----
+    function hitSfx(powerMul){
+      const c = resume();
+      if (!c) return;
+      const freq = 480 + (powerMul || 1) * 90;
+      pluck(freq, 0.12, 0.32, c.currentTime, "square");
+      noiseBurst(0.05, 0.28, c.currentTime, 2600, "bandpass");
+    }
+    function whiffSfx(){
+      const c = resume();
+      if (!c) return;
+      noiseBurst(0.16, 0.2, c.currentTime, 600, "lowpass");
+    }
+    function pointSfx(won){
+      const c = resume();
+      if (!c) return;
+      const notes = won ? [523, 659, 784] : [392, 330];
+      notes.forEach(function(f, i){ pluck(f, 0.18, 0.22, c.currentTime + i * 0.09, "triangle"); });
+    }
+    function gameEndSfx(won){
+      const c = resume();
+      if (!c) return;
+      const notes = won ? [523, 659, 784, 1046] : [392, 349, 294, 247];
+      notes.forEach(function(f, i){ pluck(f, 0.3, 0.24, c.currentTime + i * 0.15, "triangle"); });
+    }
+
+    return {
+      startBgm: startBgm, stopBgm: stopBgm,
+      hit: hitSfx, whiff: whiffSfx, point: pointSfx, gameEnd: gameEndSfx,
+    };
+  })();
+
+  // タブが非表示になったらBGMを止める(バックグラウンド再生・電池消費対策)。
+  // 復帰時、プレイ画面が表示されたままなら再開する。
+  document.addEventListener("visibilitychange", function(){
+    if (document.hidden) { AudioFX.stopBgm(); return; }
+    if ($("play").classList.contains("active")) AudioFX.startBgm();
+  });
+  window.addEventListener("pagehide", function(){ AudioFX.stopBgm(); });
+
+  /* =========================================================
+     6. ゲーム本体
      ========================================================= */
   const TennisGame = (function(){
     const REACH_RADIUS = 22;        // 届く範囲(論理単位。0〜100スケール)
@@ -310,6 +540,22 @@
     const AIM_KEY_BIAS = 16;        // 打つ瞬間に左右キーを押していると、その方向へ狙いをずらす強さ
     const BOUNCE_MS = 180;          // hit/miss/whiffの見た目演出の長さ(swingポーズの表示時間も揃える)
 
+    // ---- キャラのstats(speed/power/stamina)をゲームプレイに反映する ----
+    const STAMINA_DRAIN_BASE = 0.026; // staminaステータス=基準のとき、動いている間に減る量/ms
+    const STAMINA_REGEN_BASE = 0.05;  // staminaステータス=基準のとき、止まっている間に回復する量/ms
+    const FATIGUE_EXIT_PCT = 30;      // このパーセントまで回復すると疲労状態から抜ける
+    const FATIGUE_SPEED_MULT = 0.55;  // 疲労中の移動速度倍率(=操作性が重くなる)
+
+    /** キャラ定義からゲーム内で使う倍率一式を作る */
+    function makeProfile(char){
+      return {
+        id: char.id,
+        speedMul: statMultiplier(char.stats.speed),
+        powerMul: statMultiplier(char.stats.power),
+        staminaStat: char.stats.stamina,
+      };
+    }
+
     // "serve" | "ballToPlayer" | "ballToOpponent" | "pointOver" | "gameOver"
     let phase = "serve";
     let duration = START_DURATION;
@@ -323,6 +569,13 @@
     let rafId = null;
     let autoMissTimer = null;
     let opponentReactAt = 0;
+
+    // ---- 対戦カード(選んだキャラ・対戦相手)とstats由来のプロフィール。
+    // begin()のたびに決め直す(対戦相手は3体以上いる場合ランダムに選ばれる) ----
+    let playerChar = CHARACTERS[0], opponentChar = CHARACTERS[1];
+    let playerProfile = makeProfile(playerChar), opponentProfile = makeProfile(opponentChar);
+    let playerStamina = 100, opponentStamina = 100;
+    let playerFatigued = false, opponentFatigued = false;
 
     // ---- 見た目(idle/run/swingポーズ + 左右反転)。ゲームロジックとは独立に
     // 「今動いているか(pose用)」と「最後にどちらを向いていたか(反転用。動きが
@@ -352,7 +605,7 @@
         playerFacing < 0 ? 1 : -1);
 
       const oSwing = now < opponentSwingUntil;
-      applyVisual(opponentVisual, e.opponentImg, opponentOf(selectedChar).id,
+      applyVisual(opponentVisual, e.opponentImg, opponentChar.id,
         oSwing ? "swing" : (opponentMoving ? "run" : "idle"),
         opponentFacing < 0 ? 1 : -1);
     }
@@ -442,23 +695,60 @@
       e.hitZone.classList.toggle("visible", phase === "ballToPlayer");
       e.hitZone.classList.toggle("ready", ready);
       e.ball.classList.toggle("ready", ready);
+
+      // スタミナバー(自分の分だけ画面に表示。相手側は内部状態のみ)
+      const fill = $("staminaFill");
+      fill.style.width = playerStamina + "%";
+      fill.classList.toggle("low", playerFatigued);
     }
 
-    /* ---- プレイヤー移動(常時。ラリー中でも移動できる) ---- */
+    /** スタミナを更新し、疲労状態(=速度が落ちる)かどうかを返す共通処理。
+        movingは「このフレーム動く意思があるか」。stat=6が基準で、それより
+        高いキャラは減りが遅く・回復が速い。 */
+    function tickStamina(current, fatigued, staminaStat, moving, dtMs){
+      let stamina = current;
+      if (moving) {
+        stamina = clamp(stamina - STAMINA_DRAIN_BASE * (STAT_BASELINE / staminaStat) * dtMs, 0, 100);
+      } else {
+        stamina = clamp(stamina + STAMINA_REGEN_BASE * (staminaStat / STAT_BASELINE) * dtMs, 0, 100);
+      }
+      let nowFatigued = fatigued;
+      if (stamina <= 0) nowFatigued = true;
+      else if (stamina >= FATIGUE_EXIT_PCT) nowFatigued = false;
+      return { stamina: stamina, fatigued: nowFatigued };
+    }
+
+    /* ---- プレイヤー移動(常時。ラリー中でも移動できる)。speed statと、
+       スタミナ切れ(疲労)で実際の移動速度が変わる ---- */
     function updatePlayer(dtMs){
       let dir = 0;
       if (keys.left) dir -= 1;
       if (keys.right) dir += 1;
-      if (dir !== 0) player.x = clamp(player.x + dir * PLAYER_SPEED * dtMs, player.min, player.max);
       playerMoving = dir !== 0;
       if (dir !== 0) playerFacing = dir;
+
+      const st = tickStamina(playerStamina, playerFatigued, playerProfile.staminaStat, playerMoving, dtMs);
+      playerStamina = st.stamina; playerFatigued = st.fatigued;
+
+      if (dir !== 0) {
+        const fatigueMul = playerFatigued ? FATIGUE_SPEED_MULT : 1;
+        const speed = PLAYER_SPEED * playerProfile.speedMul * fatigueMul;
+        player.x = clamp(player.x + dir * speed * dtMs, player.min, player.max);
+      }
     }
 
-    /* ---- 相手AI(ballToOpponent の間だけ、予測着地Xへ向けて動く) ---- */
+    /* ---- 相手AI(ballToOpponent の間だけ、予測着地Xへ向けて動く)。
+       同じくspeed stat・スタミナ切れを反映する ---- */
     function updateOpponent(now, dtMs){
-      if (phase !== "ballToOpponent" || now < opponentReactAt) { opponentMoving = false; return; }
+      const active = phase === "ballToOpponent" && now >= opponentReactAt;
+      const wantsToMove = active && Math.abs(ball.targetX - opponent.x) > 0.01;
+      const st = tickStamina(opponentStamina, opponentFatigued, opponentProfile.staminaStat, wantsToMove, dtMs);
+      opponentStamina = st.stamina; opponentFatigued = st.fatigued;
+
+      if (!active) { opponentMoving = false; return; }
+      const fatigueMul = opponentFatigued ? FATIGUE_SPEED_MULT : 1;
       const dx = ball.targetX - opponent.x;
-      const step = AI_SPEED * dtMs;
+      const step = AI_SPEED * opponentProfile.speedMul * fatigueMul * dtMs;
       if (Math.abs(dx) <= step) { opponent.x = ball.targetX; opponentMoving = false; return; }
       const dir = Math.sign(dx);
       opponent.x += dir * step;
@@ -496,10 +786,11 @@
       if (!reached) { pointFor("player"); return; }
       bounce(el().opponent, "hit");
       triggerSwing("opponent");
+      AudioFX.hit(opponentProfile.powerMul);
       lastSmartReturn = rand() < SMART_RETURN_CHANCE;
       const targetX = lastSmartReturn ? aimAwayFromPlayer(player.x) : aimFromContact(opponent.x, ball.targetX);
       setTimeout(function(){
-        duration = Math.max(MIN_DURATION, duration - DURATION_STEP);
+        duration = Math.max(MIN_DURATION, duration - DURATION_STEP * opponentProfile.powerMul);
         phase = "ballToPlayer";
         ball.fromX = opponent.x; ball.fromY = Court.OPPONENT_Y;
         ball.targetX = clamp(targetX, 8, 92);
@@ -523,8 +814,8 @@
       const inWindow = elapsed >= early && elapsed <= late;
       const inReach = canReach(player.x, ball.x);
 
-      if (!inReach) { bounce(el().player, "whiff"); triggerSwing("player"); miss(); return; }
-      if (!inWindow) { bounce(el().player, "whiff"); triggerSwing("player"); miss(); return; }
+      if (!inReach) { bounce(el().player, "whiff"); triggerSwing("player"); AudioFX.whiff(); miss(); return; }
+      if (!inWindow) { bounce(el().player, "whiff"); triggerSwing("player"); AudioFX.whiff(); miss(); return; }
       hit();
     }
 
@@ -533,11 +824,12 @@
       flash("good");
       bounce(el().player, "hit");
       triggerSwing("player");
+      AudioFX.hit(playerProfile.powerMul);
       let aimDir = 0;
       if (keys.left) aimDir -= 1;
       if (keys.right) aimDir += 1;
       const targetX = aimFromContact(player.x, ball.x, aimDir);
-      duration = Math.max(MIN_DURATION, duration - DURATION_STEP);
+      duration = Math.max(MIN_DURATION, duration - DURATION_STEP * playerProfile.powerMul);
       launchToOpponent(targetX);
       setTimeout(function(){
         if (phase === "ballToOpponent") opponentArrives();
@@ -558,6 +850,7 @@
       $("playerScore").textContent = lastLabels.forLabel;
       $("opponentScore").textContent = lastLabels.againstLabel;
       $("deuceNote").hidden = !lastLabels.deuce;
+      if (!lastLabels.gameOver) AudioFX.point(who === "player");
       if (lastLabels.gameOver) {
         setTimeout(finish, 500);
       } else {
@@ -572,6 +865,8 @@
       $("resultOpponent").textContent = String(score.opponent);
       show("result");
       stopLoop();
+      AudioFX.stopBgm();
+      AudioFX.gameEnd(win);
     }
 
     function begin(){
@@ -588,6 +883,22 @@
       opponentMoving = false; opponentFacing = -1; opponentSwingUntil = 0;
       playerVisual.pose = null; playerVisual.flip = null;
       opponentVisual.pose = null; opponentVisual.flip = null;
+
+      // 対戦カードを決め直す: 選んだキャラと、そのstatsから作った倍率一式、
+      // 体格差(scale)を画像の表示幅に反映する。スタミナも満タンから始める。
+      playerChar = findChar(selectedChar);
+      opponentChar = pickOpponent(selectedChar, rand);
+      playerProfile = makeProfile(playerChar);
+      opponentProfile = makeProfile(opponentChar);
+      playerStamina = 100; opponentStamina = 100;
+      playerFatigued = false; opponentFatigued = false;
+      const e0 = el();
+      e0.playerImg.style.width = Math.round(92 * playerChar.scale) + "px";
+      e0.opponentImg.style.width = Math.round(78 * opponentChar.scale) + "px";
+      $("staminaFill").style.width = "100%";
+      $("staminaFill").classList.remove("low");
+      $("opponentName").textContent = opponentChar.name;
+
       updateVisuals(performance.now());
       el().player.classList.remove("hit","miss","whiff");
       el().opponent.classList.remove("hit","miss","whiff");
@@ -625,6 +936,10 @@
         opponent: { x: opponent.x, targetX: ball.targetX, smartReturn: lastSmartReturn },
         reachRadius: REACH_RADIUS,
         windowMs: WINDOW_MS, graceMs: GRACE_MS,
+        playerChar: playerChar.id, opponentChar: opponentChar.id,
+        playerProfile: playerProfile, opponentProfile: opponentProfile,
+        playerStamina: playerStamina, playerFatigued: playerFatigued,
+        opponentStamina: opponentStamina, opponentFatigued: opponentFatigued,
         score: {
           pointsPlayer: score.player, pointsOpponent: score.opponent,
           playerLabel: lastLabels.forLabel, opponentLabel: lastLabels.againstLabel,
@@ -641,7 +956,7 @@
   })();
 
   /* =========================================================
-     6. 入力
+     7. 入力
      移動(左右キー/ボタン)は押している間ずっと有効、打つ(タップ/クリック/
      スペース)は1回きりのイベント。別の入力として扱う。
      ========================================================= */
@@ -676,11 +991,13 @@
   bindHold($("btnRight"), "right");
 
   /* =========================================================
-     7. 画面の行き来
+     8. 画面の行き来
      ========================================================= */
-  $("startBtn").addEventListener("click", function(){ TennisGame.begin(); });
-  $("retryBtn").addEventListener("click", function(){ TennisGame.begin(); });
-  $("titleBtn").addEventListener("click", function(){ show("title"); });
+  // AudioContextの生成・再開はユーザー操作のハンドラの中で行う必要があるため、
+  // BGM開始はここ(クリックハンドラ)から呼ぶ。
+  $("startBtn").addEventListener("click", function(){ AudioFX.startBgm(); TennisGame.begin(); });
+  $("retryBtn").addEventListener("click", function(){ AudioFX.startBgm(); TennisGame.begin(); });
+  $("titleBtn").addEventListener("click", function(){ AudioFX.stopBgm(); show("title"); });
 
   paintCharRow();
   show("title");
