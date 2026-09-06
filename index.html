@@ -13,7 +13,9 @@
     --good:#34d399;
   }
   *{ box-sizing:border-box; }
-  html,body{ margin:0; height:100%; background:#0b1020; color:#fff;
+  /* 下スワイプ(ドロップ)がブラウザの引っ張り更新に食われないよう、ページ端の
+     オーバースクロールを止める(#app の touch-action:none と二重の防御) */
+  html,body{ margin:0; height:100%; background:#0b1020; color:#fff; overscroll-behavior:none;
     font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif; }
   /* 背景画像(fal.ai生成)。中央は暗く空けてあり、四隅にラケット・ボールの光跡
      だけが入る構図なので、上に載るタイトル・カード類の可読性を邪魔しない。 */
@@ -292,6 +294,12 @@
   .hintDir{ display:inline-block; padding:0 3px; opacity:.5; transition:opacity .15s, color .15s; }
   .hintDir.lit{ opacity:1; color:var(--accent); text-shadow:0 0 8px rgba(56,189,248,.8); }
 
+  /* 音のON/OFF。どの画面でも右上に出しておく(BGMが常時鳴るので止める手段は必須) */
+  .muteBtn{ position:absolute; top:10px; right:10px; z-index:30; width:38px; height:38px;
+    border-radius:999px; border:1px solid rgba(255,255,255,.22); background:rgba(11,16,32,.7);
+    color:#fff; font-size:16px; cursor:pointer; touch-action:manipulation; }
+  .muteBtn.off{ opacity:.55; }
+
   /* ネットダッシュ: 押すと「次に打った後、前へ詰める」。決めやすくなる代わりに
      頭上をロブで抜かれやすくなる、というリスクとセットの操作。 */
   .playBar{ display:flex; flex-direction:column; align-items:center; gap:7px; width:100%; }
@@ -362,7 +370,7 @@
     <button class="bigBtn" id="startBtn">はじめる</button>
     <div class="titleBtnRow">
       <button class="ghostBtn" id="howtoBtn">遊び方 ／ HOW TO PLAY</button>
-      <button class="ghostBtn" id="achBtn">実績 0/12</button>
+      <button class="ghostBtn" id="achBtn">実績 0/13</button>
     </div>
   </section>
 
@@ -494,6 +502,7 @@
   </section>
 
   <div id="toasts"></div>
+  <button class="muteBtn" id="muteBtn" aria-label="音を消す/出す" title="音を消す/出す">🔊</button>
 </div>
 
 <script>
@@ -519,13 +528,24 @@
      ========================================================= */
   const Sfx = (function(){
     let ctx = null, master = null;
+    const MASTER_VOL = 0.35;
+    const MUTE_KEY = "tennis-game:muted";
+    let muted = false;
+    try { muted = localStorage.getItem(MUTE_KEY) === "1"; } catch (e) {}
+    /** ミュートの切替。ctx は止めない(解除した瞬間に鳴らせるように)。BGMも master 経由なので一緒に消える */
+    function setMuted(on){
+      muted = !!on;
+      try { localStorage.setItem(MUTE_KEY, muted ? "1" : "0"); } catch (e) {}
+      if (master) master.gain.value = muted ? 0 : MASTER_VOL;
+    }
+    function isMuted(){ return muted; }
     function ensure(){
       if (!ctx) {
         const AC = window.AudioContext || window.webkitAudioContext;
         if (!AC) return null;
         ctx = new AC();
         master = ctx.createGain();
-        master.gain.value = 0.35;
+        master.gain.value = muted ? 0 : MASTER_VOL;
         master.connect(ctx.destination);
       }
       return ctx;
@@ -782,7 +802,7 @@
     function state(){ return ctx ? ctx.state : "none"; }
 
     return { unlock, unlockJingle, hit, whiff, bounce, smash, charge, pointWin, pointLose, win, lose, state,
-      startBgm, stopBgm, bgmStats };
+      startBgm, stopBgm, bgmStats, setMuted, isMuted };
   })();
 
   /* =========================================================
@@ -1009,6 +1029,7 @@
       { id:"perfect_10",  name:"パーフェクト×10", desc:"1試合でPERFECTを10回出す" },
       { id:"smash_point", name:"必殺スマッシュ",   desc:"スマッシュで得点する" },
       { id:"lob_point",   name:"頭上を越えて",     desc:"ロブで得点する" },
+      { id:"drop_point",  name:"ネット際に落とす", desc:"ドロップショットで得点する" },
       { id:"beat_rusher", name:"ネット封じ",       desc:"ネットラッシャーに勝つ" },
       { id:"champion",    name:"チャンピオン",     desc:"トーナメントで優勝する" },
       { id:"rally_30",    name:"ラリー30",         desc:"ラリーアタックで30回続ける" },
@@ -1089,6 +1110,7 @@
       if (res.perfects >= 10) grant("perfect_10");
       if (res.smashPoints > 0) grant("smash_point");
       if (res.lobPoints > 0) grant("lob_point");
+      if (res.dropPoints > 0) grant("drop_point");
     }
     function equip(kind, id){
       const r = load();
@@ -2002,7 +2024,8 @@
       const result = { mode: meta.mode, win: win, opponentId: opp.id,
         pointsPlayer: score.player, pointsOpponent: score.opponent,
         longestRally: rally.longest, perfects: rally.perfects, deuceSeen: stats.deuceSeen,
-        playerMisses: stats.playerMisses, smashPoints: stats.smashPoints, lobPoints: stats.lobPoints, outs: stats.outs,
+        playerMisses: stats.playerMisses, smashPoints: stats.smashPoints, lobPoints: stats.lobPoints,
+        dropPoints: stats.dropPoints, outs: stats.outs,
         hits: rallyRun.hits, score: rallyRun.score, maxCombo: rallyRun.maxCombo };
       if (typeof onEnd === "function") onEnd(result);
       Progress.onResult(result);   // 実績判定は結果画面を出したあと(トーストが乗る)
@@ -2018,7 +2041,8 @@
       lastLabels = scoreLabels(0, 0);
       lastSmartReturn = false; lastShot = null; pendingShot = null; forcedCourse = null;
       exchanges = 0; opponentHits = 0; gauge = 0; paintGauge();
-      stats.deuceSeen = false; stats.playerMisses = 0; stats.smashPoints = 0; stats.lobPoints = 0; stats.outs = 0;
+      stats.deuceSeen = false; stats.playerMisses = 0; stats.smashPoints = 0; stats.lobPoints = 0;
+      stats.dropPoints = 0; stats.outs = 0;
       oppCharId = opponentChar(opp.char, selectedChar).id;
       rallyRun.hits = 0; rallyRun.score = 0; rallyRun.combo = 0; rallyRun.maxCombo = 0;
       // 前の試合の最後の球(アウトなら場外)が残ったままにならないよう、相手の足元に戻す
@@ -2358,6 +2382,18 @@
      ========================================================= */
   $("startBtn").addEventListener("click", function(){ Sfx.unlock(); Modes.paintModes(); show("modes"); });
   $("netBtn").addEventListener("click", function(e){ e.preventDefault(); TennisGame.toggleNetRush(); });
+  function paintMute(){
+    const on = Sfx.isMuted();
+    $("muteBtn").textContent = on ? "🔇" : "🔊";
+    $("muteBtn").classList.toggle("off", on);
+  }
+  $("muteBtn").addEventListener("click", function(e){
+    e.preventDefault();
+    Sfx.unlock();                       // 初回はユーザー操作としてctxを起こしておく
+    Sfx.setMuted(!Sfx.isMuted());
+    paintMute();
+  });
+  paintMute();
   $("howtoBtn").addEventListener("click", function(){ show("howto"); });
   $("howtoBack").addEventListener("click", function(){ show("title"); });
   $("achBtn").addEventListener("click", function(){ paintAchievements(); show("achievements"); });
