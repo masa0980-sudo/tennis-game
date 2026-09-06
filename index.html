@@ -59,6 +59,19 @@
   .howRow b{ color:#fff; }
   .howIcon{ font-size:15px; flex-shrink:0; width:20px; text-align:center; }
 
+  /* 選択中キャラの特性パネル(グリッドの下)。4軸を●5段で見せる */
+  .charDetail{ width:100%; max-width:420px; display:grid; grid-template-columns:1fr 1fr; gap:4px 14px;
+    padding:9px 14px; border-radius:12px; background:rgba(255,255,255,.05);
+    border:1px solid rgba(255,255,255,.12); font-size:11px; color:#cbd5e1; text-align:left; }
+  .cdHead{ grid-column:1 / -1; display:flex; align-items:baseline; gap:8px; margin-bottom:2px; }
+  .cdHead b{ font-size:13px; color:#fff; }
+  .cdRole{ font-size:10px; font-weight:800; color:var(--accent2); letter-spacing:.08em; }
+  .cdRow{ display:flex; align-items:center; justify-content:space-between; gap:6px; }
+  .cdLabel{ color:#9aa4c4; white-space:nowrap; }
+  .cdDots i{ display:inline-block; width:7px; height:7px; border-radius:50%; margin-left:3px;
+    background:rgba(255,255,255,.14); }
+  .cdDots i.on{ background:var(--accent); box-shadow:0 0 6px rgba(56,189,248,.6); }
+
   /* 10人ぶんが縦に収まるよう、5列のグリッドにする(狭い画面では4列) */
   .charRow{ display:grid; grid-template-columns:repeat(5, 1fr); gap:8px;
     width:100%; max-width:420px; }
@@ -239,7 +252,8 @@
   /* ポーズ(idle/run/swing)は画像の差し替え、向きは .body の --flip(1=左向き/-1=右向き)。
      素材は左向きに描かれているので右へ向く時だけ反転する。反転を img ではなく .body に
      付けるのは、img の transform transition が scaleX(0) を経由して一瞬ペラペラになるため */
-  .charWrap .body{ position:relative; transform: scaleX(var(--flip, 1)) rotate(var(--lean, 0deg));
+  /* --zoom: 奥行きの遠近。自分はネットに出るほど遠ざかって小さく、相手は近づいて大きく */
+  .charWrap .body{ position:relative; transform: scaleX(var(--flip, 1)) rotate(var(--lean, 0deg)) scale(var(--zoom, 1));
     transition: transform .18s; }
   /* テル(相手の予備動作): 狙う側へ体を傾ける(--lean)、強打の前は縮んで赤い輪(.charge) */
   .charWrap.charge img, .charWrap.charge .body > svg{ animation: chargePulse .18s ease-in-out infinite alternate;
@@ -369,6 +383,7 @@
     </div>
     <p class="sub">タイミングよくタップ。スワイプでコースを打ち分けよう。</p>
     <div class="charRow" id="charRow"></div>
+    <div class="charDetail" id="charDetail"></div>
     <button class="bigBtn" id="startBtn">はじめる</button>
     <div class="titleBtnRow">
       <button class="ghostBtn" id="howtoBtn">遊び方 ／ HOW TO PLAY</button>
@@ -1143,19 +1158,19 @@
         素材は左向きに描かれているので、右を向く時は .body の --flip で反転する。
      ========================================================= */
   const CHARACTERS = [
-    { id:"funifuni", name:"ふにふに", body:"#fdfaf3", accent:"#8ec5e8", ear:"none", file:"art/funifuni.png",
+    { id:"funifuni", name:"ふにふに", role:"バランス", stats:{reach:3,timing:3,gauge:3,foot:3}, body:"#fdfaf3", accent:"#8ec5e8", ear:"none", file:"art/funifuni.png",
       idle:"art/funifuni-idle.png", run:"art/funifuni-run.png", swing:"art/funifuni-swing.png" },
-    { id:"kotokoto", name:"ことこと", body:"#fdf6ea", accent:"#b9a7e0", ear:"cat", file:"art/kotokoto.png",
+    { id:"kotokoto", name:"ことこと", role:"テクニック", stats:{reach:2,timing:4,gauge:3,foot:3}, body:"#fdf6ea", accent:"#b9a7e0", ear:"cat", file:"art/kotokoto.png",
       idle:"art/kotokoto-idle.png", run:"art/kotokoto-run.png", swing:"art/kotokoto-swing.png" },
-    { id:"mokomoko", name:"もこもこ", body:"#fbf3e2", accent:"#8fd9c0", ear:"sheep" },
-    { id:"petapeta",  name:"ぺたぺた", body:"#dfe7f2", accent:"#f79c8b", ear:"penguin" },
-    { id:"piyopiyo",  name:"ぴよぴよ", body:"#fde9a9", accent:"#f7a8c4", ear:"chick" },
-    { id:"pyonpyon",  name:"ぴょんぴょん", body:"#fdf7f7", accent:"#f6b89b", ear:"rabbit" },
-    { id:"nosonoso",  name:"のそのそ", body:"#fdf6ea", accent:"#ef8f7e", ear:"bear",
+    { id:"mokomoko", name:"もこもこ", role:"守備型", stats:{reach:4,timing:2,gauge:2,foot:4}, body:"#fbf3e2", accent:"#8fd9c0", ear:"sheep" },
+    { id:"petapeta",  name:"ぺたぺた", role:"ためる", stats:{reach:3,timing:3,gauge:4,foot:2}, body:"#dfe7f2", accent:"#f79c8b", ear:"penguin" },
+    { id:"piyopiyo",  name:"ぴよぴよ", role:"俊足", stats:{reach:2,timing:3,gauge:2,foot:5}, body:"#fde9a9", accent:"#f7a8c4", ear:"chick" },
+    { id:"pyonpyon",  name:"ぴょんぴょん", role:"跳ねる", stats:{reach:3,timing:3,gauge:2,foot:4}, body:"#fdf7f7", accent:"#f6b89b", ear:"rabbit" },
+    { id:"nosonoso",  name:"のそのそ", role:"パワー", stats:{reach:4,timing:2,gauge:5,foot:1}, body:"#fdf6ea", accent:"#ef8f7e", ear:"bear",
       idle:"art/nosonoso-idle.png", run:"art/nosonoso-run.png", swing:"art/nosonoso-swing.png" },
-    { id:"kerokero",  name:"けろけろ", body:"#c8e6a8", accent:"#f5a05a", ear:"frog" },
-    { id:"patapata",  name:"ぱたぱた", body:"#ddd8ea", accent:"#6ec7c7", ear:"owl" },
-    { id:"chikuchiku",name:"ちくちく", body:"#f0dfc4", accent:"#ef8f7e", ear:"hedgehog" }
+    { id:"kerokero",  name:"けろけろ", role:"拾う", stats:{reach:4,timing:2,gauge:3,foot:3}, body:"#c8e6a8", accent:"#f5a05a", ear:"frog" },
+    { id:"patapata",  name:"ぱたぱた", role:"精密", stats:{reach:2,timing:5,gauge:3,foot:2}, body:"#ddd8ea", accent:"#6ec7c7", ear:"owl" },
+    { id:"chikuchiku",name:"ちくちく", role:"一撃", stats:{reach:3,timing:3,gauge:4,foot:2}, body:"#f0dfc4", accent:"#ef8f7e", ear:"hedgehog" }
   ];
   const missingArt = {};   // 読めなかった画像パス → true(フォールバックに切り替える)
   CHARACTERS.forEach(function(c){
@@ -1282,9 +1297,33 @@
       });
       box.appendChild(btn);
     });
+    paintCharDetail();
   }
   function findChar(id){
     return CHARACTERS.find(function(x){ return x.id === id; }) || CHARACTERS[0];
+  }
+  /* キャラの stats(1〜5、3が基準) をプレイ中の倍率にする。自動移動と衝突しない
+     4軸だけを選んである: 届く範囲 / タイミングの窓の広さ / ゲージの貯まりやすさ /
+     前後の足の速さ。相手側は OPPONENTS の値で動くので、これは自分専用。 */
+  const STAT_LABELS = { reach:"届く範囲", timing:"判定の広さ", gauge:"ゲージ", foot:"前後の足" };
+  function playerStatsFor(charId){
+    const st = (findChar(charId).stats) || { reach:3, timing:3, gauge:3, foot:3 };
+    const mul = function(v, k){ return 1 + (v - 3) * k; };
+    return { reachMul: mul(st.reach, 0.14), timingMul: mul(st.timing, 0.12),
+      gaugeMul: mul(st.gauge, 0.15), footMul: mul(st.foot, 0.15), raw: st };
+  }
+  /** 選択中キャラの特性をタイトルのグリッド下に出す(5列グリッドの各セルは狭すぎるため) */
+  function paintCharDetail(){
+    const c = findChar(selectedChar);
+    const st = c.stats || { reach:3, timing:3, gauge:3, foot:3 };
+    const box = $("charDetail");
+    if (!box) return;
+    box.innerHTML = '<div class="cdHead"><b>' + c.name + '</b><span class="cdRole">' + (c.role || "") + '</span></div>' +
+      Object.keys(STAT_LABELS).map(function(k){
+        let dots = "";
+        for (let i = 1; i <= 5; i++) dots += '<i class="' + (i <= st[k] ? "on" : "") + '"></i>';
+        return '<div class="cdRow"><span class="cdLabel">' + STAT_LABELS[k] + '</span><span class="cdDots">' + dots + '</span></div>';
+      }).join("");
   }
   /** 相手のキャラ。指定があればそれ、無ければプレイヤーと違うキャラを順に選ぶ */
   function opponentChar(preferId, playerId){
@@ -1330,11 +1369,13 @@
       lob:      { target:null, mul:1.45, arc:110, depth:0.0  }, // 頭上を越えて深く
       drop:     { target:null, mul:0.78, arc:30,  depth:0.92 }, // ネット際に短く落とす
     };
-    function judge(delta){
+    // winMul: キャラの「判定の広さ」。1より大きいほど窓が広がる(自分側だけ)
+    function judge(delta, winMul){
+      const w = winMul || 1;
       const a = Math.abs(delta);
-      if (a <= PERFECT_MS) return "perfect";
-      if (a <= GOOD_MS) return "good";
-      if (delta >= -EARLY_MS && delta <= LATE_MS) return "ok";
+      if (a <= PERFECT_MS * w) return "perfect";
+      if (a <= GOOD_MS * w) return "good";
+      if (delta >= -EARLY_MS * w && delta <= LATE_MS * w) return "ok";
       return "whiff";
     }
     /* ロブ・ドロップは横位置を指定しない代わりに、相手から少し離れた側へ流す。
@@ -1395,19 +1436,19 @@
   const OPPONENTS = [
     { id:"rookie", name:"ルーキー", char:"piyopiyo", desc:"ミスが多い。まずは相手のアウトを待とう", style:"erratic",
       speed:0.052, reactionMs:220, reach:15, errorRate:0.18, smartChance:0.10,
-      startDuration:1300, minDuration:920, durationMul:1.05, smashReachMul:0.55, lobWeak:false, tellMs:0 },
+      startDuration:1300, minDuration:920, durationMul:1.05, smashReachMul:0.55, lobWeak:false, tellMs:0, dropChance:0.05 },
     { id:"retriever", name:"ねばりの守護神", char:"mokomoko", desc:"遅いがなんでも拾う。角を狙って走らせろ", style:"steady",
       speed:0.076, reactionMs:120, reach:17, errorRate:0.04, smartChance:0.20,
-      startDuration:1200, minDuration:840, durationMul:1.10, smashReachMul:0.35, lobWeak:false, tellMs:0 },
+      startDuration:1200, minDuration:840, durationMul:1.10, smashReachMul:0.35, lobWeak:false, tellMs:0, dropChance:0.10 },
     { id:"rusher", name:"ネットラッシャー", char:"pyonpyon", desc:"ネットに詰めてくる。頭上をロブ(▲)で抜け", style:"netrush",
       speed:0.070, reactionMs:90, reach:20, errorRate:0.08, smartChance:0.45,
-      startDuration:1100, minDuration:780, durationMul:0.88, smashReachMul:0.45, lobWeak:true, tellMs:0 },
+      startDuration:1100, minDuration:780, durationMul:0.88, smashReachMul:0.45, lobWeak:true, tellMs:0, dropChance:0.25 },
     { id:"power", name:"パワーヒッター", char:"nosonoso", desc:"赤く光ったら強打が来る。落ち着いて合わせろ", style:"power",
       speed:0.064, reactionMs:140, reach:16, errorRate:0.12, smartChance:0.50,
-      startDuration:1050, minDuration:730, durationMul:0.80, smashReachMul:0.50, lobWeak:false, tellMs:180 },
+      startDuration:1050, minDuration:730, durationMul:0.80, smashReachMul:0.50, lobWeak:false, tellMs:180, dropChance:0.08 },
     { id:"champion", name:"チャンピオン", char:"patapata", desc:"死角なし。4本に1本スマッシュを打ってくる", style:"allround",
       speed:0.078, reactionMs:100, reach:17, errorRate:0.05, smartChance:0.60,
-      startDuration:1000, minDuration:680, durationMul:0.85, smashReachMul:0.30, lobWeak:false, tellMs:150, smashEvery:4 },
+      startDuration:1000, minDuration:680, durationMul:0.85, smashReachMul:0.30, lobWeak:false, tellMs:150, smashEvery:4, dropChance:0.20 },
   ];
   function findOpponent(id){ return OPPONENTS.find(function(o){ return o.id === id; }) || OPPONENTS[0]; }
 
@@ -1417,6 +1458,7 @@
     id:"machine", name:"ラリーマシン", char:"petapeta", desc:"ミスするまで続く", style:"machine",
     speed:0.30, reactionMs:60, reach:100, errorRate:0, smartChance:0.10,
     startDuration:1100, minDuration:520, durationMul:1.0, smashReachMul:1.0, lobWeak:false, tellMs:0,
+    dropChance:0,   // ランキングの難易度を変えないため、マシンはドロップを打たない
   };
   /** ラリーアタックの難易度ランプ。hits(累計ヒット数)で球速と狙いの厳しさが上がる */
   function rampFor(hits){
@@ -1556,6 +1598,7 @@
     const opponent = { x: 50, depth: 0, targetDepth: 0,
       min: Court.X_MIN, max: Court.X_MAX, running: null, facing: "left" };
     let netRushArmed = false;     // 「次に打ったらネットへ出る」フラグ(ネットダッシュボタン)
+    let pstat = playerStatsFor(selectedChar);   // 選んだキャラの特性(begin() で取り直す)
     const vis = { player: { pose:null, flip:null, char:null }, opponent: { pose:null, flip:null, char:null } };
     let playerSwingUntil = 0, opponentSwingUntil = 0;
     const ball = { x:50, y:Court.OPPONENT_Y, fromX:50, fromY:Court.OPPONENT_Y,
@@ -1608,7 +1651,7 @@
     /** 自分がその球に届くか。横(x)に加えて奥行き(depth)も見る。
         ネットに詰めている時に頭上をロブで抜かれると、下がり切れず届かない。 */
     function playerCanReach(){
-      if (!canReach(player.x, ball.x, REACH_RADIUS)) return false;
+      if (!canReach(player.x, ball.x, REACH_RADIUS * pstat.reachMul)) return false;
       return Math.abs(player.depth - ball.targetDepth) <= DEPTH_REACH;
     }
     /** 「今タップしたら実際にヒットする」か。swing() の成功条件と同じ式にして、
@@ -1616,7 +1659,7 @@
     function isHittableNow(now){
       if (phase !== "ballToPlayer" || now < player.cooldownUntil) return false;
       if (!playerCanReach()) return false;
-      return ShotSystem.judge(now - (ball.flightStart + ball.flightDuration)) !== "whiff";
+      return ShotSystem.judge(now - (ball.flightStart + ball.flightDuration), pstat.timingMul) !== "whiff";
     }
     function updateVisuals(now){
       const e = el();
@@ -1653,10 +1696,10 @@
       if (!on) opponent.depth = 0;   // ポイント間のリセットは即座に戻す
     }
     /** depth を targetDepth へ近づける。下がる方が遅い */
-    function stepDepth(who, dt){
+    function stepDepth(who, dt, mul){
       const d = who.targetDepth - who.depth;
       if (Math.abs(d) < 0.002) { who.depth = who.targetDepth; return; }
-      const sp = (d > 0 ? DEPTH_FWD_SPEED : DEPTH_BACK_SPEED) * dt;
+      const sp = (d > 0 ? DEPTH_FWD_SPEED : DEPTH_BACK_SPEED) * dt * (mul || 1);
       who.depth = clamp(who.depth + Math.sign(d) * Math.min(Math.abs(d), sp), 0, 1);
     }
     function applyTell(t){
@@ -1676,6 +1719,8 @@
       // 前後位置(depth)を縦の立ち位置に反映する
       e.player.style.bottom = Court.playerBottom(player.depth) + "%";
       e.opponent.style.top = Court.opponentTop(opponent.depth) + "%";
+      e.player.style.setProperty("--zoom", (1 - player.depth * 0.10).toFixed(3));
+      e.opponent.style.setProperty("--zoom", (1 + opponent.depth * 0.12).toFixed(3));
       e.hitZone.style.left = Court.toCssX(player.x) + "%";
       e.hitZone.style.bottom = (12 + player.depth * 27) + "%";
       const ready = isHittableNow(now);
@@ -1715,7 +1760,7 @@
         player.targetX = 50;
         dir = AutoMover.step(player, 50, AutoMover.RECOVER_SPEED, dt);
       }
-      stepDepth(player, dt);
+      stepDepth(player, dt, pstat.footMul);
       player.running = dir;
       if (dir) player.facing = dir;
     }
@@ -1840,6 +1885,15 @@
         duration *= 1.35;
         targetX = clamp(player.x + (player.x < 50 ? 16 : -16), 12, 88);
       }
+      /* 逆に自分が下がっていると、相手はネット際に短く落としてくる(dropChance は相手ごと)。
+         低い弧(30)が予告。前へ走り切れないと届かない = 前後の駆け引きが双方向になる */
+      const dropShort = !isSmash && !lobOverPlayer && player.depth < 0.3 && rand() < (opp.dropChance || 0);
+      if (dropShort) {
+        retDepth = 0.92;           // 自分のネット際
+        retArc = 30;
+        duration *= 0.85;
+        targetX = clamp(player.x + (player.x < 50 ? 14 : -14), 15, 85);
+      }
       if (opp.style === "netrush" && !atNet() && rand() < 0.6) setNet(true); // 返球後に前へ出る
 
       const charge = isSmash || (opp.style === "power" && opp.tellMs > 0 && rand() < 0.5);
@@ -1874,7 +1928,7 @@
       const arrivalAt = ball.flightStart + ball.flightDuration;
       const delta = now - arrivalAt;
       const inReach = playerCanReach();
-      const tier = inReach ? ShotSystem.judge(delta) : "whiff";
+      const tier = inReach ? ShotSystem.judge(delta, pstat.timingMul) : "whiff";
       const cssX = Court.toCssX(player.x);
 
       playerSwingUntil = now + SWING_MS;
@@ -1913,7 +1967,7 @@
       // ゲージ満タンなら perfect/good が自動でスマッシュになる(追加入力なし)
       const smash = gauge >= 100 && (tier === "perfect" || tier === "good");
       pendingShot = ShotSystem.resolve(tier, course, shotCtx(smash));
-      if (smash) gauge = 0; else gauge = Math.min(100, gauge + pendingShot.gaugeGain);
+      if (smash) gauge = 0; else gauge = Math.min(100, gauge + pendingShot.gaugeGain * pstat.gaugeMul);
       paintGauge();
       lastShot = { tier: tier, deltaMs: delta, course: course, smash: smash, targetX: pendingShot.targetX,
         duration: pendingShot.duration, arc: pendingShot.arc };
@@ -2052,6 +2106,9 @@
       ball.targetX = 50; ball.targetY = Court.PLAYER_Y; ball.arc = 42; ball.smash = false;
       ball.flightStart = 0; ball.flightDuration = opp.startDuration;
       applyTell(null); setNet(false); releaseNetRush();
+      pstat = playerStatsFor(selectedChar);
+      $("hitZone").style.width = (34 * pstat.reachMul).toFixed(1) + "%";
+      $("hitZone").style.marginLeft = (-17 * pstat.reachMul).toFixed(1) + "%";
       player.depth = 0; player.targetDepth = 0;
       opponent.depth = 0; opponent.targetDepth = 0;
       ball.targetDepth = 0.12;
@@ -2120,7 +2177,7 @@
         player: { x: player.x, targetX: player.targetX, min: player.min, max: player.max,
           running: player.running, facing: player.facing, cooldownUntil: player.cooldownUntil,
           depth: player.depth, targetDepth: player.targetDepth, atNet: playerAtNet(),
-          netRushArmed: netRushArmed },
+          netRushArmed: netRushArmed, stats: pstat },
         visual: { playerPose: vis.player.pose, playerFlip: vis.player.flip, playerChar: vis.player.char,
           opponentPose: vis.opponent.pose, opponentFlip: vis.opponent.flip, opponentChar: vis.opponent.char,
           playerArt: $("playerWrap").querySelector(".body").dataset.art,

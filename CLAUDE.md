@@ -121,5 +121,13 @@ sporty `art/<char>-{idle,run,swing}.png` set (fal.ai, generated in masa's local 
 to 320px here); `art/funifuni.png` / `kotokoto.png` remain as the `poseFile()` fallback.
 
 Since then: BGM, a global mute, depth/forward movement with lob/drop/net-rush, a howto screen,
-and PNG art for のそのそ. Deliberately still out: sets/matches (a game is a single game), per-character
-stats (all ten play identically), and opponent drop shots (opponents only lob).
+PNG art for のそのそ, per-character stats, opponent drop shots, and a perspective zoom on depth.
+Deliberately still out: sets/matches (a game is a single game).
+- **Character stats** live on each `CHARACTERS` entry as `stats:{reach,timing,gauge,foot}` (1–5,
+  3 = neutral, every character totals 12). `playerStatsFor()` turns them into multipliers that
+  only touch the *player*: reach radius, `ShotSystem.judge(delta, winMul)` window width, gauge gain,
+  and `stepDepth()` speed. Opponents are unaffected — their feel comes from `OPPONENTS`. The
+  selected character's stats are shown under the title grid (`#charDetail`).
+- **Opponent drop shots**: `OPPONENTS[].dropChance` — when the player is deep (`depth < 0.3`)
+  the opponent may drop to the net (low arc 30 is the tell). `RALLY_MACHINE` has `dropChance:0`
+  so leaderboard difficulty is unchanged.
