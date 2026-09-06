@@ -292,6 +292,17 @@
   .hintDir{ display:inline-block; padding:0 3px; opacity:.5; transition:opacity .15s, color .15s; }
   .hintDir.lit{ opacity:1; color:var(--accent); text-shadow:0 0 8px rgba(56,189,248,.8); }
 
+  /* ネットダッシュ: 押すと「次に打った後、前へ詰める」。決めやすくなる代わりに
+     頭上をロブで抜かれやすくなる、というリスクとセットの操作。 */
+  .playBar{ display:flex; flex-direction:column; align-items:center; gap:7px; width:100%; }
+  .netBtn{ padding:9px 20px; border-radius:999px; font-size:13px; font-weight:800;
+    color:#cbd5e1; border:1.5px solid rgba(56,189,248,.45); background:rgba(56,189,248,.10);
+    cursor:pointer; touch-action:manipulation; transition:all .15s; }
+  .netBtn.armed{ color:#0b1020; border-color:transparent;
+    background:linear-gradient(90deg,var(--accent),var(--accent2));
+    box-shadow:0 0 18px rgba(56,189,248,.6); }
+  .netBtn.atNet{ color:#fde68a; border-color:rgba(253,230,138,.6); background:rgba(253,230,138,.12); }
+
   .flash{ position:absolute; inset:0; pointer-events:none; opacity:0; z-index:6; }
   .flash.good{ background:rgba(52,211,153,.18); }
   .flash.bad{ background:rgba(248,113,113,.22); }
@@ -363,7 +374,12 @@
     <div class="howtoPanel">
       <p class="howtoHead">操作</p>
       <div class="howRow"><span class="howIcon">👆</span><span><b>タップ / クリック / スペース</b>で打つ。移動は自動なので、狙うのは打つ<b>タイミング</b>だけ。</span></div>
-      <div class="howRow"><span class="howIcon">🎯</span><span>打った直後に <b>◀ ▶ スワイプ</b>（または矢印キー）でコースを打ち分け。<b>▲</b> で山なりのロブ。</span></div>
+      <div class="howRow"><span class="howIcon">🎯</span><span>打った直後に <b>◀ ▶ スワイプ</b>（または矢印キー）でコースを打ち分け。</span></div>
+
+      <p class="howtoHead">前後を使った打ち分け</p>
+      <div class="howRow"><span class="howIcon">🪁</span><span><b>▲ ＝ ロブ</b>。相手の頭上を越えて<b>奥</b>へ落とす。ネットに出てきた相手に刺さる。</span></div>
+      <div class="howRow"><span class="howIcon">🎾</span><span><b>▼ ＝ ドロップ</b>。<b>ネット際</b>に短く落とす。下がっている相手を前に走らせる。</span></div>
+      <div class="howRow"><span class="howIcon">⇧</span><span>画面下の<b>「ネットへ出る」</b>（<b>N</b> キー）で、次に打った後そのまま前へ詰める。決めやすくなる代わりに<b>頭上をロブで抜かれる</b>。もう一度押すと下がる。</span></div>
 
       <p class="howtoHead">タイミング判定</p>
       <div class="howRow"><span class="howIcon">💡</span><span>足元のバーとボールが<b>光った瞬間</b>が打ち頃。光っている間なら必ず返せる。</span></div>
@@ -445,9 +461,12 @@
       </div>
       <div class="flash" id="flash"></div>
     </div>
-    <p class="tapHint">タップで打つ ・ スワイプでコース
-      <span class="hintDir" data-dir="left">◀</span><span class="hintDir" data-dir="lob">▲</span><span class="hintDir" data-dir="right">▶</span>
-    </p>
+    <div class="playBar">
+      <p class="tapHint">タップで打つ ・ スワイプでコース
+        <span class="hintDir" data-dir="left">◀</span><span class="hintDir" data-dir="lob">▲</span><span class="hintDir" data-dir="right">▶</span><span class="hintDir" data-dir="drop">▼</span>
+      </p>
+      <button class="netBtn" id="netBtn">⇧ ネットへ出る</button>
+    </div>
   </section>
 
   <!-- ================= 結果 ================= -->
@@ -771,12 +790,21 @@
         論理X座標は0〜100。見切れないよう、CSS上は15%〜85%の帯に写像する。
         前後移動は無く(=奥行きは今回のスコープ外)、左右だけを扱う。
      ========================================================= */
+  /* 奥行き(depth)は 0=ベースライン、1=ネット際 の 0〜1。
+     縦位置(%)は depth から求める。プレイヤーは下から、相手は上から詰める。 */
   const Court = {
     X_MIN: 0, X_MAX: 100,
     CSS_MIN: 10, CSS_MAX: 90,   // 背景のサイドライン(10%〜90%)いっぱいまで使う
     PLAYER_Y: 92,     // 自分の打点(コート下端寄り、%)
+    PLAYER_NET_Y: 64, // 自分がネットに詰めた時の打点
     OPPONENT_Y: 5,    // 相手の打点(コート上端寄り、%)
+    OPPONENT_NET_Y: 30, // 相手がネットに詰めた時の打点
     toCssX: function(x){ return Court.CSS_MIN + (Court.CSS_MAX - Court.CSS_MIN) * (x / 100); },
+    playerY: function(d){ return lerp(Court.PLAYER_Y, Court.PLAYER_NET_Y, clamp(d, 0, 1)); },
+    opponentY: function(d){ return lerp(Court.OPPONENT_Y, Court.OPPONENT_NET_Y, clamp(d, 0, 1)); },
+    // キャラの立ち位置(CSSのbottom/top %)。打点より少し外側に立たせる
+    playerBottom: function(d){ return 0.5 + clamp(d, 0, 1) * 27; },
+    opponentTop: function(d){ return 0.5 + clamp(d, 0, 1) * 23; },
   };
   let rand = Math.random;
   function setRng(fn){ rand = (typeof fn === "function") ? fn : Math.random; }
@@ -1268,11 +1296,15 @@
       good:    { mul:0.95, err:6,  gauge:12 },
       ok:      { mul:1.08, err:14, gauge:0  },   // ふわっとした返球(相手に時間を与える)
     };
+    /* depth: 着弾の深さ(0=相手のベースライン際 / 1=相手のネット際)。
+       ロブは頭上を越えて一番奥へ、ドロップはネット際に落とす。
+       横(target)だけでなく縦にも走らせることで前後の駆け引きを作る。 */
     const COURSES = {
-      left:     { target:12,   mul:1.0, arc:42 },
-      right:    { target:88,   mul:1.0, arc:42 },
-      straight: { target:50,   mul:1.0, arc:42 },
-      lob:      { target:null, mul:1.5, arc:110 }, // 相手の逆サイドへ、遅く高く
+      left:     { target:12,   mul:1.0,  arc:42,  depth:0.12 },
+      right:    { target:88,   mul:1.0,  arc:42,  depth:0.12 },
+      straight: { target:50,   mul:1.0,  arc:42,  depth:0.12 },
+      lob:      { target:null, mul:1.45, arc:110, depth:0.0  }, // 頭上を越えて深く
+      drop:     { target:null, mul:0.78, arc:30,  depth:0.92 }, // ネット際に短く落とす
     };
     function judge(delta){
       const a = Math.abs(delta);
@@ -1281,8 +1313,12 @@
       if (delta >= -EARLY_MS && delta <= LATE_MS) return "ok";
       return "whiff";
     }
+    /* ロブ・ドロップは横位置を指定しない代わりに、相手から少し離れた側へ流す。
+       (真上に打ち上げると相手がその場で待ててしまうため) */
     function courseTarget(course, opponentX){
-      if (course === "lob") return opponentX < 50 ? 80 : 20;
+      if (course === "lob" || course === "drop") {
+        return clamp(opponentX + (opponentX < 50 ? 18 : -18), 15, 85);
+      }
       return (COURSES[course] || COURSES.straight).target;
     }
     // ctx: { rallyBase, minDuration, opponentX, smash }
@@ -1296,6 +1332,7 @@
       const targetX = clamp(base + (rand() - 0.5) * 2 * err, 4, 96);
       const duration = clamp(ctx.rallyBase * T.mul * C.mul * (smash ? 0.62 : 1), ctx.minDuration * 0.55, 1800);
       return { tier: tier, course: course, smash: smash, targetX: targetX, duration: duration,
+        targetDepth: smash ? 0.35 : C.depth,
         arc: smash ? 18 : C.arc, errorUnits: err, gaugeGain: T.gauge };
     }
     return { judge, resolve, courseTarget, PERFECT_MS, GOOD_MS, EARLY_MS, LATE_MS, SWING_COOLDOWN_MS };
@@ -1475,17 +1512,26 @@
     let gauge = 0;                // 必殺ゲージ 0〜100(ポイント間で持ち越し、失点で-20)
     let opponentHits = 0;         // 相手が返した回数(チャンピオンのスマッシュ周期用)
     let tell = null;              // 相手の予備動作 { dir:"L"|"R", charge:bool }
-    let atNet = false;            // ネットラッシャーが前に出ているか
-    const stats = { deuceSeen:false, playerMisses:0, smashPoints:0, lobPoints:0, outs:0 };
+    const stats = { deuceSeen:false, playerMisses:0, smashPoints:0, lobPoints:0, outs:0, dropPoints:0 };
     // ラリーアタック用。hits=累計ヒット数、combo=連続perfect/good(okで途切れる)
     const rallyRun = { hits:0, score:0, combo:0, maxCombo:0 };
     function isRally(){ return meta.mode === "rally"; }
-    const OPPONENT_TOP_NET = 22;  // ネット際に出た時の相手の位置(top %)
-    const OPPONENT_Y_NET = 27;    // その時のボールの打点(%)
+
+    /* ---- 奥行き(前後) ----
+       depth 0=ベースライン / 1=ネット際。前へ出るのは速く、下がるのは遅い
+       (実際のテニスと同じで、後ろへ走らされるほうがつらい)。
+       これによりロブ=下がらせる / ドロップ=前に出させる の駆け引きが成立する。 */
+    const DEPTH_FWD_SPEED = 0.0022;   // 前へ出る速さ(depth/ms)
+    const DEPTH_BACK_SPEED = 0.0013;  // 下がる速さ(前進より遅い)
+    const NET_DEPTH = 0.85;           // 「ネットに詰めた」とみなす位置
+    const DEPTH_REACH = 0.34;         // 縦方向に手が届く範囲(depth単位)
 
     const SWING_MS = 240;         // スイングポーズを見せる時間
-    const player = { x: 50, targetX: 50, min: Court.X_MIN, max: Court.X_MAX, running: null, facing: "left", cooldownUntil: 0 };
-    const opponent = { x: 50, min: Court.X_MIN, max: Court.X_MAX, running: null, facing: "left" };
+    const player = { x: 50, targetX: 50, depth: 0, targetDepth: 0,
+      min: Court.X_MIN, max: Court.X_MAX, running: null, facing: "left", cooldownUntil: 0 };
+    const opponent = { x: 50, depth: 0, targetDepth: 0,
+      min: Court.X_MIN, max: Court.X_MAX, running: null, facing: "left" };
+    let netRushArmed = false;     // 「次に打ったらネットへ出る」フラグ(ネットダッシュボタン)
     const vis = { player: { pose:null, flip:null, char:null }, opponent: { pose:null, flip:null, char:null } };
     let playerSwingUntil = 0, opponentSwingUntil = 0;
     const ball = { x:50, y:Court.OPPONENT_Y, fromX:50, fromY:Court.OPPONENT_Y,
@@ -1508,11 +1554,44 @@
       return { ball: $("ball"), shadow: $("ballShadow"), hitZone: $("hitZone"),
         player: $("playerWrap"), opponent: $("opponentWrap") };
     }
+    /* ---- ネットダッシュ ----
+       「次に打った後、前へ詰める」を予約する。ネットにいると相手の返球に
+       早く触れる(＝決めやすい)が、頭上をロブで抜かれると下がり切れない。
+       もう一度押す/ポイントが終わると解除して自動の前後に戻る。 */
+    function paintNetBtn(){
+      const b = $("netBtn");
+      if (!b) return;
+      b.classList.toggle("armed", netRushArmed && !playerAtNet());
+      b.classList.toggle("atNet", playerAtNet());
+      b.textContent = playerAtNet() ? "⇩ 下がる" : (netRushArmed ? "⇧ ネットへ出る（ON）" : "⇧ ネットへ出る");
+    }
+    function toggleNetRush(){
+      if (playerAtNet()) {              // 前に出ている時はその場で下がる
+        netRushArmed = false;
+        player.targetDepth = 0;
+      } else {
+        netRushArmed = !netRushArmed;
+        if (!netRushArmed) player.targetDepth = ball.targetDepth != null ? ball.targetDepth : 0;
+      }
+      paintNetBtn();
+    }
+    function releaseNetRush(){
+      netRushArmed = false;
+      player.targetDepth = 0;
+      paintNetBtn();
+    }
+
+    /** 自分がその球に届くか。横(x)に加えて奥行き(depth)も見る。
+        ネットに詰めている時に頭上をロブで抜かれると、下がり切れず届かない。 */
+    function playerCanReach(){
+      if (!canReach(player.x, ball.x, REACH_RADIUS)) return false;
+      return Math.abs(player.depth - ball.targetDepth) <= DEPTH_REACH;
+    }
     /** 「今タップしたら実際にヒットする」か。swing() の成功条件と同じ式にして、
         見た目(バー/ボールの光り)と成否が食い違わないようにする */
     function isHittableNow(now){
       if (phase !== "ballToPlayer" || now < player.cooldownUntil) return false;
-      if (!canReach(player.x, ball.x, REACH_RADIUS)) return false;
+      if (!playerCanReach()) return false;
       return ShotSystem.judge(now - (ball.flightStart + ball.flightDuration)) !== "whiff";
     }
     function updateVisuals(now){
@@ -1540,10 +1619,21 @@
       $("gauge").classList.toggle("full", gauge >= 100);
       $("gaugeLabel").textContent = gauge >= 100 ? "SMASH READY" : "SMASH";
     }
-    function opponentY(){ return atNet ? OPPONENT_Y_NET : Court.OPPONENT_Y; }
+    function opponentY(){ return Court.opponentY(opponent.depth); }
+    function playerY(){ return Court.playerY(player.depth); }
+    function atNet(){ return opponent.depth >= 0.5; }        // 相手がネットに詰めているか
+    function playerAtNet(){ return player.depth >= 0.5; }
+    /** 相手を前(ネット)/後ろ(ベースライン)へ向かわせる。実際の移動は毎フレーム進む */
     function setNet(on){
-      atNet = on;
-      $("opponentWrap").style.top = on ? (OPPONENT_TOP_NET + "%") : "0.5%";
+      opponent.targetDepth = on ? NET_DEPTH : 0;
+      if (!on) opponent.depth = 0;   // ポイント間のリセットは即座に戻す
+    }
+    /** depth を targetDepth へ近づける。下がる方が遅い */
+    function stepDepth(who, dt){
+      const d = who.targetDepth - who.depth;
+      if (Math.abs(d) < 0.002) { who.depth = who.targetDepth; return; }
+      const sp = (d > 0 ? DEPTH_FWD_SPEED : DEPTH_BACK_SPEED) * dt;
+      who.depth = clamp(who.depth + Math.sign(d) * Math.min(Math.abs(d), sp), 0, 1);
     }
     function applyTell(t){
       tell = t;
@@ -1559,7 +1649,11 @@
       const e = el();
       e.player.style.left = Court.toCssX(player.x) + "%";
       e.opponent.style.left = Court.toCssX(opponent.x) + "%";
+      // 前後位置(depth)を縦の立ち位置に反映する
+      e.player.style.bottom = Court.playerBottom(player.depth) + "%";
+      e.opponent.style.top = Court.opponentTop(opponent.depth) + "%";
       e.hitZone.style.left = Court.toCssX(player.x) + "%";
+      e.hitZone.style.bottom = (12 + player.depth * 27) + "%";
       const ready = isHittableNow(now);
       e.hitZone.classList.toggle("visible", phase === "ballToPlayer");
       e.hitZone.classList.toggle("ready", ready);
@@ -1584,7 +1678,9 @@
       }
     }
 
-    /* ---- 自動移動(自分) ---- */
+    /* ---- 自動移動(自分) ----
+       横は着地点へ、縦(depth)は「打たれた球の深さ」へ自動で合わせる。
+       ネットダッシュを使った時だけ、自分の意思でネット際に張り付く。 */
     function updatePlayerAuto(now, dt){
       let dir = null;
       if (phase === "ballToPlayer") {
@@ -1595,18 +1691,27 @@
         player.targetX = 50;
         dir = AutoMover.step(player, 50, AutoMover.RECOVER_SPEED, dt);
       }
+      stepDepth(player, dt);
       player.running = dir;
       if (dir) player.facing = dir;
     }
 
-    /* ---- 相手AI(ballToOpponent の間だけ、着地点へ向けて動く) ---- */
+    /* ---- 相手AI(ballToOpponent の間だけ、着地点へ向けて動く) ----
+       横だけでなく縦(depth)も着地点へ寄せる。下がるのは前へ出るより遅いので、
+       ロブ(depth 0)を打たれると戻り切れず、ドロップ(depth 0.9)は前へ走らされる。 */
     function updateOpponent(now, dt){
       let dir = null;
       if (phase === "ballToOpponent" && now >= opponentReactAt) {
-        // ネット際にいる時のロブは頭上を越えていくので、後ろへはほとんど下がれない
-        const lobbed = atNet && opp.lobWeak && lastShot && lastShot.course === "lob";
-        dir = AutoMover.step(opponent, ball.targetX, opp.speed * (lobbed ? 0.12 : 1), dt);
+        /* 全速力で先回りすると、着地点に着いた後そこで固まって待つ不自然な動きになる
+           (遅いロブで特に目立っていた)。着地の時刻に間に合う速さまで落として
+           滑り込むように動かし、間に合わない時だけ全力で走る。 */
+        const remain = Math.max(60, (ball.flightStart + ball.flightDuration) - now);
+        const need = Math.abs(ball.targetX - opponent.x) / remain;
+        const sp = Math.min(opp.speed, Math.max(need, 0.004));
+        dir = AutoMover.step(opponent, ball.targetX, sp, dt);
+        opponent.targetDepth = ball.targetDepth;
       }
+      stepDepth(opponent, dt);
       opponent.running = dir;
       if (dir) opponent.facing = dir;
     }
@@ -1614,15 +1719,20 @@
     /* ---- ラリーの進行 ---- */
     function launchToPlayer(targetX, duration, arc, opts){
       phase = "ballToPlayer";
+      const o = opts || {};
       ball.fromX = opponent.x; ball.fromY = opponentY();
       ball.targetX = clamp(targetX, 4, 96);
-      ball.targetY = Court.PLAYER_Y;
+      // 自分側の着地の深さ。0=自分のベースライン際、1=自分のネット際
+      ball.targetDepth = (o.depth != null) ? clamp(o.depth, 0, 1) : 0.12;
+      ball.targetY = Court.playerY(ball.targetDepth);
       ball.flightStart = performance.now();
       ball.flightDuration = duration;
       ball.arc = arc || 42;
-      ball.smash = !!(opts && opts.smash);
+      ball.smash = !!o.smash;
       if (ball.smash) { Fx.judgePop("smash", Court.toCssX(opponent.x), "top"); Sfx.smash(); }
       player.targetX = clamp(ball.targetX - AutoMover.STANCE_OFFSET, player.min, player.max);
+      // ネットに張り付いたままでなければ、打たれた深さに合わせて自動で前後する
+      if (!netRushArmed) player.targetDepth = ball.targetDepth;
       $("ball").classList.remove("hidden");
       clearTimeout(autoMissTimer);
       autoMissTimer = setTimeout(function(){
@@ -1639,9 +1749,11 @@
 
     function launchToOpponent(shot){
       phase = "ballToOpponent";
-      ball.fromX = ball.x; ball.fromY = Court.PLAYER_Y;
+      ball.fromX = ball.x; ball.fromY = playerY();
       ball.targetX = shot.targetX;
-      ball.targetY = opponentY();
+      // 相手側の着地の深さ。ロブなら奥(0)、ドロップならネット際(0.92)
+      ball.targetDepth = (shot.targetDepth != null) ? clamp(shot.targetDepth, 0, 1) : 0.12;
+      ball.targetY = Court.opponentY(ball.targetDepth);
       ball.flightStart = performance.now();
       ball.flightDuration = shot.duration;
       ball.arc = shot.arc;
@@ -1657,10 +1769,15 @@
       const shot = lastShot || {};
       let reach = opp.reach;
       if (shot.smash) reach *= opp.smashReachMul;                    // 必殺スマッシュは届きにくい
-      if (shot.course === "lob" && opp.lobWeak && atNet) reach *= 0.25; // ネット際の相手はロブに弱い
-      if (!canReach(opponent.x, ball.targetX, reach)) {
+      if (shot.course === "lob" && opp.lobWeak) reach *= 0.6;        // ロブに弱い相手はさらに苦しい
+      // 縦(奥行き)も見る。ロブで下がらされた/ドロップで前に出られなかった分は
+      // 「間に合わなかった距離」として残るので、そのまま抜けたことになる
+      const depthGap = Math.abs(opponent.depth - ball.targetDepth);
+      const outOfReach = !canReach(opponent.x, ball.targetX, reach) || depthGap > DEPTH_REACH;
+      if (outOfReach) {
         if (shot.smash) stats.smashPoints += 1;
         if (shot.course === "lob") stats.lobPoints += 1;
+        if (shot.course === "drop") stats.dropPoints += 1;
         Fx.judgePop(shot.smash ? "smashwin" : "pass", Court.toCssX(ball.targetX), "top");
         pointFor("player");
         return;
@@ -1687,15 +1804,28 @@
       let targetX = lastSmartReturn ? aimAwayFromPlayer(player.x) : aimFromContact(opponent.x, ball.targetX);
       if (opp.style === "power") targetX = lerp(targetX, targetX < 50 ? 8 : 92, 0.6); // 角へさらに寄せる
       const isSmash = ramp ? ramp.smash : (!!opp.smashEvery && (opponentHits % opp.smashEvery === 0));
-      const duration = Math.max(opp.minDuration * 0.7, rallyBase() * opp.durationMul) * (isSmash ? 0.65 : 1);
-      if (opp.style === "netrush" && !atNet && rand() < 0.6) setNet(true); // 返球後に前へ出る
+      let duration = Math.max(opp.minDuration * 0.7, rallyBase() * opp.durationMul) * (isSmash ? 0.65 : 1);
+
+      /* 自分がネットに詰めていると、相手はロブで頭上を抜きにくる。
+         ネットダッシュに「決まりやすいがロブに弱い」というリスクを持たせる部分。 */
+      const lobOverPlayer = !isSmash && playerAtNet() && rand() < 0.55;
+      let retDepth = 0.12, retArc = isSmash ? 18 : 42;
+      if (lobOverPlayer) {
+        retDepth = 0;              // 自分のベースライン際まで深く
+        retArc = 110;
+        duration *= 1.35;
+        targetX = clamp(player.x + (player.x < 50 ? 16 : -16), 12, 88);
+      }
+      if (opp.style === "netrush" && !atNet() && rand() < 0.6) setNet(true); // 返球後に前へ出る
 
       const charge = isSmash || (opp.style === "power" && opp.tellMs > 0 && rand() < 0.5);
       applyTell({ dir: targetX < 50 ? "L" : "R", charge: charge });
       const pause = RETURN_PAUSE + (charge ? opp.tellMs : 0);
+      const finalTargetX = targetX;
       arriveTimer = setTimeout(function(){
         applyTell(null);
-        launchToPlayer(targetX, charge ? duration * 0.85 : duration, isSmash ? 18 : 42, { smash: isSmash });
+        launchToPlayer(finalTargetX, charge ? duration * 0.85 : duration, retArc,
+          { smash: isSmash, depth: retDepth, lob: lobOverPlayer });
       }, pause);
     }
 
@@ -1719,7 +1849,7 @@
       if (now < player.cooldownUntil) return null;
       const arrivalAt = ball.flightStart + ball.flightDuration;
       const delta = now - arrivalAt;
-      const inReach = canReach(player.x, ball.x, REACH_RADIUS);
+      const inReach = playerCanReach();
       const tier = inReach ? ShotSystem.judge(delta) : "whiff";
       const cssX = Court.toCssX(player.x);
 
@@ -1735,6 +1865,8 @@
 
       // ヒット: ボールを止め(ヒットストップ)、コースは後追いで受け付ける
       clearTimeout(autoMissTimer);
+      // ネットダッシュを予約していたら、打った勢いのまま前へ詰める
+      if (netRushArmed) { player.targetDepth = NET_DEPTH; paintNetBtn(); }
       phase = "hitstop";
       swingAt = now;
       hitstopUntil = now + HITSTOP_MS;
@@ -1802,6 +1934,9 @@
         const smash = keepSmash(lastShot.smash, course);
         const shot = ShotSystem.resolve(lastShot.tier, course, shotCtx(smash));
         ball.targetX = shot.targetX; ball.flightDuration = shot.duration; ball.arc = shot.arc; ball.smash = smash;
+        // 深さも差し替える(ロブ/ドロップに変えたら着地点の奥行きが変わる)
+        ball.targetDepth = shot.targetDepth != null ? shot.targetDepth : 0.12;
+        ball.targetY = Court.opponentY(ball.targetDepth);
         lastShot.course = course; lastShot.smash = smash; lastShot.targetX = shot.targetX;
         lastShot.duration = shot.duration; lastShot.arc = shot.arc;
         clearTimeout(arriveTimer);
@@ -1829,6 +1964,7 @@
       clearTimers();
       applyTell(null);
       setNet(false);
+      releaseNetRush();       // 自分の前後位置もベースラインへ戻す
       score[who] += 1;
       lastLabels = scoreLabels(score.player, score.opponent);
       if (lastLabels.deuce) stats.deuceSeen = true;
@@ -1889,7 +2025,10 @@
       ball.x = 50; ball.y = Court.OPPONENT_Y; ball.fromX = 50; ball.fromY = Court.OPPONENT_Y;
       ball.targetX = 50; ball.targetY = Court.PLAYER_Y; ball.arc = 42; ball.smash = false;
       ball.flightStart = 0; ball.flightDuration = opp.startDuration;
-      applyTell(null); setNet(false);
+      applyTell(null); setNet(false); releaseNetRush();
+      player.depth = 0; player.targetDepth = 0;
+      opponent.depth = 0; opponent.targetDepth = 0;
+      ball.targetDepth = 0.12;
       $("vsName").textContent = isRally() ? "ラリーアタック" : ("vs " + opp.name);
       $("playerLabel").textContent = isRally() ? "SCORE" : "あなた";
       $("opponentLabel").textContent = isRally() ? "COMBO" : "相手";
@@ -1947,18 +2086,22 @@
         ball: { x: ball.x, y: ball.y, fromX: ball.fromX, fromY: ball.fromY,
           targetX: ball.targetX, targetY: ball.targetY,
           flightStart: ball.flightStart, flightDuration: ball.flightDuration,
-          arrivalAt: ball.flightStart + ball.flightDuration, arc: ball.arc, smash: !!ball.smash },
+          arrivalAt: ball.flightStart + ball.flightDuration, arc: ball.arc, smash: !!ball.smash,
+          targetDepth: ball.targetDepth },
         stats: { deuceSeen: stats.deuceSeen, playerMisses: stats.playerMisses, smashPoints: stats.smashPoints,
           lobPoints: stats.lobPoints, outs: stats.outs, opponentHits: opponentHits },
         rallyRun: { hits: rallyRun.hits, score: rallyRun.score, combo: rallyRun.combo, maxCombo: rallyRun.maxCombo },
         player: { x: player.x, targetX: player.targetX, min: player.min, max: player.max,
-          running: player.running, facing: player.facing, cooldownUntil: player.cooldownUntil },
+          running: player.running, facing: player.facing, cooldownUntil: player.cooldownUntil,
+          depth: player.depth, targetDepth: player.targetDepth, atNet: playerAtNet(),
+          netRushArmed: netRushArmed },
         visual: { playerPose: vis.player.pose, playerFlip: vis.player.flip, playerChar: vis.player.char,
           opponentPose: vis.opponent.pose, opponentFlip: vis.opponent.flip, opponentChar: vis.opponent.char,
           playerArt: $("playerWrap").querySelector(".body").dataset.art,
           ready: isHittableNow(performance.now()) },
         opponent: { id: opp.id, x: opponent.x, targetX: ball.targetX, smartReturn: lastSmartReturn,
-          running: opponent.running, reach: opp.reach, tell: tell, atNet: atNet },
+          running: opponent.running, reach: opp.reach, tell: tell, atNet: atNet(),
+          depth: opponent.depth, targetDepth: opponent.targetDepth },
         lastShot: lastShot,
         pendingCourse: pendingShot ? pendingShot.course : null,
         hitstopUntil: hitstopUntil, courseWindowUntil: courseWindowUntil, swingAt: swingAt,
@@ -1978,7 +2121,7 @@
       };
     }
 
-    return { begin, swing, applyCourse, forceCourse, debugState };
+    return { begin, swing, applyCourse, forceCourse, debugState, toggleNetRush, paintNetBtn };
   })();
 
   /* =========================================================
@@ -1995,7 +2138,7 @@
     let heldDir = null;
 
     function resolveCourse(dx, dy){
-      if (Math.abs(dy) > Math.abs(dx) * 1.2 && dy < 0) return "lob";
+      if (Math.abs(dy) > Math.abs(dx) * 1.2) return dy < 0 ? "lob" : "drop";
       return dx < 0 ? "left" : "right";
     }
     function settle(g, course){
@@ -2030,7 +2173,7 @@
     court.addEventListener("pointercancel", end);
 
     const DIR_KEYS = { ArrowLeft:"left", a:"left", A:"left", ArrowRight:"right", d:"right", D:"right",
-      ArrowUp:"lob", w:"lob", W:"lob" };
+      ArrowUp:"lob", w:"lob", W:"lob", ArrowDown:"drop", s:"drop", S:"drop" };
     const SWING_CODES = { Space:1, Enter:1, KeyJ:1 };
     window.addEventListener("keydown", function(e){
       const dir = DIR_KEYS[e.key];
@@ -2038,6 +2181,12 @@
         heldDir = dir;
         if ($("play").classList.contains("active")) TennisGame.applyCourse(dir);
         e.preventDefault();
+        return;
+      }
+      // N キー(またはボタン)でネットダッシュのON/OFF
+      if ((e.code === "KeyN") && $("play").classList.contains("active")) {
+        e.preventDefault();
+        if (!e.repeat) TennisGame.toggleNetRush();
         return;
       }
       if (SWING_CODES[e.code] && $("play").classList.contains("active")) {
@@ -2208,6 +2357,7 @@
      13. 画面の行き来
      ========================================================= */
   $("startBtn").addEventListener("click", function(){ Sfx.unlock(); Modes.paintModes(); show("modes"); });
+  $("netBtn").addEventListener("click", function(e){ e.preventDefault(); TennisGame.toggleNetRush(); });
   $("howtoBtn").addEventListener("click", function(){ show("howto"); });
   $("howtoBack").addEventListener("click", function(){ show("title"); });
   $("achBtn").addEventListener("click", function(){ paintAchievements(); show("achievements"); });
@@ -2234,6 +2384,7 @@
   window.__tennis = {
     begin: TennisGame.begin, swing: TennisGame.swing, applyCourse: TennisGame.applyCourse,
     forceCourse: TennisGame.forceCourse, debugState: TennisGame.debugState,
+    toggleNetRush: TennisGame.toggleNetRush,
     startMode: function(mode, opts){
       opts = opts || {};
       if (mode === "tournament") Modes.Tournament.start(opts.stage || 0, !!opts.force);
