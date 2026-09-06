@@ -15,13 +15,24 @@
   *{ box-sizing:border-box; }
   html,body{ margin:0; height:100%; background:#0b1020; color:#fff;
     font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif; }
-  #app{ position:relative; min-height:100dvh; width:100%; overflow:hidden; touch-action:none; }
+  /* 背景画像(fal.ai生成)。中央は暗く空けてあり、四隅にラケット・ボールの光跡
+     だけが入る構図なので、上に載るタイトル・カード類の可読性を邪魔しない。 */
+  #app{ position:relative; min-height:100dvh; width:100%; overflow:hidden; touch-action:none;
+    background:#0b1020 url("art/title-bg.png") center / cover no-repeat; }
   .screen{ position:absolute; inset:0; display:none; flex-direction:column; align-items:center;
     justify-content:center; gap:18px; padding:24px; text-align:center; }
   .screen.active{ display:flex; }
 
   h1{ font-size:28px; margin:0; letter-spacing:.02em; }
   .sub{ color:#9aa4c4; font-size:13px; margin:0; }
+
+  /* タイトルの操作説明パネル。1行ずつ絵文字アイコンを置いて、初見でも
+     「打つ・コース・スマッシュ」の3点がすぐ分かるようにする。 */
+  .howTo{ display:flex; flex-direction:column; gap:6px; padding:11px 14px; border-radius:14px;
+    background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12);
+    max-width:420px; width:100%; }
+  .howRow{ display:flex; align-items:center; gap:9px; font-size:12px; color:#cbd5e1; text-align:left; }
+  .howIcon{ font-size:15px; flex-shrink:0; width:20px; text-align:center; }
 
   /* 10人ぶんが縦に収まるよう、5列のグリッドにする(狭い画面では4列) */
   .charRow{ display:grid; grid-template-columns:repeat(5, 1fr); gap:8px;
@@ -77,7 +88,9 @@
   .resultBtns{ display:flex; flex-direction:column; gap:10px; align-items:center; }
 
   /* ===== プレイ画面 ===== */
-  #play{ justify-content:space-between; padding:12px 10px 16px; gap:8px; }
+  /* プレイ中はコートと文字の視認性を優先し、背景画像を半透明の幕で沈める */
+  #play{ justify-content:space-between; padding:12px 10px 16px; gap:8px;
+    background:rgba(11,16,32,.55); }
   .hud{ display:flex; justify-content:space-between; align-items:center; width:100%; max-width:460px;
     font-variant-numeric:tabular-nums; font-size:12px; color:#9aa4c4; }
   .hud b{ color:#fff; font-size:26px; display:block; line-height:1.1; }
@@ -307,10 +320,16 @@
   <section id="title" class="screen active">
     <h1>コート・ラリー</h1>
     <p class="sub">タイミングよくタップ。スワイプでコースを打ち分けよう。</p>
+    <div class="howTo">
+      <div class="howRow"><span class="howIcon">👆</span><span>タップ / クリック / スペースキーで打つ</span></div>
+      <div class="howRow"><span class="howIcon">🏃</span><span>移動は自動。狙いどころは打つタイミング</span></div>
+      <div class="howRow"><span class="howIcon">💡</span><span>足元のバーとボールが光ったら打ち頃のサイン</span></div>
+      <div class="howRow"><span class="howIcon">🎯</span><span>打った直後に ◀ ▶ スワイプ（矢印キー）でコース、▲ でロブ</span></div>
+      <div class="howRow"><span class="howIcon">🔥</span><span>SMASH READY で会心のタイミングに打つとスマッシュ</span></div>
+    </div>
     <div class="charRow" id="charRow"></div>
     <button class="bigBtn" id="startBtn">はじめる</button>
     <button class="ghostBtn" id="achBtn">実績 0/12</button>
-    <p class="tapHint">タップ / スペースで打つ　・　◀ ▲ ▶ スワイプ / 矢印キーでコース</p>
   </section>
 
   <!-- ================= 実績とアンロック ================= -->
@@ -507,6 +526,41 @@
       const t = now();
       [523.25, 659.25, 783.99, 1046.5].forEach(function(f, i){ tone(t + i * 0.12, { type:"sine", freq:f, dur:0.22, peak:0.26 }); });
     }
+    // ---- BGM: ポップだが軽すぎない8ステップのループ。効果音と同じ ctx / master に
+    // ぶら下げる(AudioContextを2つ作らない)。先読みして予約する方式で、setTimeout の
+    // ジッタが音のヨレにならないようにしてある。 ----
+    const BGM_BPM = 128;
+    const BGM_STEP_SEC = 60 / BGM_BPM / 2;   // 8分音符
+    const BGM_LOOKAHEAD = 0.15;              // この秒数だけ先まで予約する
+    const BGM_BASS = 98;                     // G2相当。1・5拍目の土台
+    const BGM_MELODY = [392, 0, 440, 523, 392, 0, 349, 440];
+    let bgmOn = false, bgmStep = 0, bgmNextAt = 0, bgmTimer = null;
+
+    function bgmSchedule(step, at){
+      if (step % 4 === 0) tone(at, { type:"sine", freq:BGM_BASS, dur:BGM_STEP_SEC * 1.9, peak:0.16 });
+      const n = BGM_MELODY[step % BGM_MELODY.length];
+      if (n) tone(at, { type:"triangle", freq:n, dur:BGM_STEP_SEC * 0.9, peak:0.1 });
+    }
+    function bgmTick(){
+      if (!bgmOn) return;
+      const c = ensure();
+      if (!c) return;
+      while (bgmNextAt < c.currentTime + BGM_LOOKAHEAD) {
+        bgmSchedule(bgmStep, bgmNextAt);
+        bgmNextAt += BGM_STEP_SEC;
+        bgmStep = (bgmStep + 1) % BGM_MELODY.length;
+      }
+      bgmTimer = setTimeout(bgmTick, 40);
+    }
+    function startBgm(){
+      const c = unlock();
+      if (!c || bgmOn) return;
+      bgmOn = true; bgmStep = 0;
+      bgmNextAt = c.currentTime + 0.05;
+      bgmTick();
+    }
+    function stopBgm(){ bgmOn = false; clearTimeout(bgmTimer); }
+
     function lose(){
       const t = now();
       tone(t,        { type:"triangle", freq:392, dur:0.25, peak:0.22 });
@@ -514,7 +568,8 @@
     }
     function state(){ return ctx ? ctx.state : "none"; }
 
-    return { unlock, unlockJingle, hit, whiff, bounce, smash, charge, pointWin, pointLose, win, lose, state };
+    return { unlock, unlockJingle, hit, whiff, bounce, smash, charge, pointWin, pointLose, win, lose, state,
+      startBgm, stopBgm };
   })();
 
   /* =========================================================
@@ -850,7 +905,8 @@
     { id:"petapeta",  name:"ぺたぺた", body:"#dfe7f2", accent:"#f79c8b", ear:"penguin" },
     { id:"piyopiyo",  name:"ぴよぴよ", body:"#fde9a9", accent:"#f7a8c4", ear:"chick" },
     { id:"pyonpyon",  name:"ぴょんぴょん", body:"#fdf7f7", accent:"#f6b89b", ear:"rabbit" },
-    { id:"nosonoso",  name:"のそのそ", body:"#e8cfae", accent:"#f2c14e", ear:"bear" },
+    { id:"nosonoso",  name:"のそのそ", body:"#fdf6ea", accent:"#ef8f7e", ear:"bear",
+      idle:"art/nosonoso-idle.png", run:"art/nosonoso-run.png", swing:"art/nosonoso-swing.png" },
     { id:"kerokero",  name:"けろけろ", body:"#c8e6a8", accent:"#f5a05a", ear:"frog" },
     { id:"patapata",  name:"ぱたぱた", body:"#ddd8ea", accent:"#6ec7c7", ear:"owl" },
     { id:"chikuchiku",name:"ちくちく", body:"#f0dfc4", accent:"#ef8f7e", ear:"hedgehog" }
@@ -1608,6 +1664,7 @@
       $("resultPerfect").textContent = String(rally.perfects);
       $("resultCombo").textContent = String(rallyRun.maxCombo);
       $("resultBtns").innerHTML = "";
+      Sfx.stopBgm();   // 勝敗ジングルとBGMが重ならないように先に止める
       if (isRally()) Sfx.lose(); else if (win) Sfx.win(); else Sfx.lose();
       show("result");
       stopLoop();
@@ -1666,6 +1723,7 @@
       e.shadow.style.top = ball.y + "%";
       $("ball").classList.remove("hidden");
       show("play");
+      Sfx.startBgm();
       Progress.applyEquipped();
       startLoop();
       setTimeout(function(){ if (phase === "serve") serve(); }, 600);
@@ -1962,6 +2020,14 @@
   $("modeRally").addEventListener("click", function(){ Modes.Rally.start(); });
   $("modesBack").addEventListener("click", function(){ paintAchButton(); show("title"); });
   $("ladderBack").addEventListener("click", function(){ Modes.paintModes(); show("modes"); });
+
+  // タブが隠れたらBGMを止める(バックグラウンド再生・電池消費対策)。
+  // 戻ってきた時、プレイ画面のままなら鳴らし直す。
+  document.addEventListener("visibilitychange", function(){
+    if (document.hidden) { Sfx.stopBgm(); return; }
+    if ($("play").classList.contains("active")) Sfx.startBgm();
+  });
+  window.addEventListener("pagehide", function(){ Sfx.stopBgm(); });
 
   paintCharRow();
   paintAchButton();
