@@ -327,6 +327,20 @@
     box-shadow:0 0 18px rgba(56,189,248,.6); }
   .netBtn.atNet{ color:#fde68a; border-color:rgba(253,230,138,.6); background:rgba(253,230,138,.12); }
 
+  .playBarRow{ display:flex; align-items:center; gap:8px; }
+  .pauseBtn{ width:38px; height:38px; border-radius:999px; border:1px solid rgba(255,255,255,.22);
+    background:rgba(255,255,255,.06); color:#fff; font-size:15px; cursor:pointer; touch-action:manipulation; }
+
+  /* 一時停止中の画面。コート全体に暗幕を掛け、操作を受け付けなくする(#court自体は
+     pointer-eventsで塞がず、Input側/TennisGame側の paused チェックで止めている) */
+  .pauseOverlay{ position:absolute; inset:0; z-index:25; display:flex; align-items:center; justify-content:center;
+    background:rgba(5,8,18,.72); backdrop-filter:blur(2px); }
+  .pauseOverlay[hidden]{ display:none; }
+  .pauseCard{ display:flex; flex-direction:column; align-items:center; gap:10px; padding:28px 32px;
+    border-radius:18px; background:rgba(18,24,44,.85); border:1px solid rgba(167,139,250,.35);
+    box-shadow:0 0 40px rgba(56,189,248,.15); }
+  .pauseTitle{ font-size:20px; font-weight:900; letter-spacing:.1em; color:#fff; margin:0 0 4px; }
+
   .flash{ position:absolute; inset:0; pointer-events:none; opacity:0; z-index:6; }
   .flash.good{ background:rgba(52,211,153,.18); }
   .flash.bad{ background:rgba(248,113,113,.22); }
@@ -486,11 +500,21 @@
       </div>
       <div class="flash" id="flash"></div>
     </div>
+    <div class="pauseOverlay" id="pauseOverlay" hidden>
+      <div class="pauseCard">
+        <p class="pauseTitle">一時停止</p>
+        <button class="bigBtn" id="resumeBtn">再開する</button>
+        <button class="ghostBtn" id="pauseQuitBtn">モード選択へ</button>
+      </div>
+    </div>
     <div class="playBar">
       <p class="tapHint">タップで打つ ・ スワイプでコース
         <span class="hintDir" data-dir="left">◀</span><span class="hintDir" data-dir="lob">▲</span><span class="hintDir" data-dir="right">▶</span><span class="hintDir" data-dir="drop">▼</span>
       </p>
-      <button class="netBtn" id="netBtn">⇧ ネットへ出る</button>
+      <div class="playBarRow">
+        <button class="netBtn" id="netBtn">⇧ ネットへ出る</button>
+        <button class="pauseBtn" id="pauseBtn" aria-label="一時停止" title="一時停止">⏸</button>
+      </div>
     </div>
   </section>
 
@@ -1606,7 +1630,26 @@
 
     let rafId = null, lastTick = 0;
     let autoMissTimer = null, arriveTimer = null, hitstopTimer = null;
+    let endTimer = null, serveTimer = null;   // ポイント間/ゲーム終了の遅延(一時停止対応)
     let opponentReactAt = 0;
+    // ---- 一時停止 ----
+    // setTimeoutは止められないので、名前付きで発火予定時刻(fireAt)を覚えておき、
+    // pause で全部キャンセルして残り時間を保存、resume で残り時間ぶんだけ張り直す。
+    // ball.flightStart 等の絶対時刻も、一時停止した分だけ後ろへずらす。
+    const timerMeta = {};
+    let paused = false, pausedAt = 0;
+    function pt(name, fn, delay){
+      timerMeta[name] = { fn: fn, fireAt: performance.now() + delay };
+      return setTimeout(function(){ delete timerMeta[name]; fn(); }, delay);
+    }
+    const TIMER_NAMES = ["autoMiss", "arrive", "hitstop", "end", "serveNext"];
+    function timerVar(name, val){
+      if (name === "autoMiss") { if (val !== undefined) autoMissTimer = val; return autoMissTimer; }
+      if (name === "arrive")   { if (val !== undefined) arriveTimer = val;   return arriveTimer; }
+      if (name === "hitstop")  { if (val !== undefined) hitstopTimer = val;  return hitstopTimer; }
+      if (name === "end")      { if (val !== undefined) endTimer = val;      return endTimer; }
+      if (name === "serveNext"){ if (val !== undefined) serveTimer = val;    return serveTimer; }
+    }
 
     const score = { player:0, opponent:0 };
     let lastLabels = scoreLabels(0, 0);
@@ -1648,6 +1691,40 @@
       paintNetBtn();
     }
 
+    const PAUSABLE_PHASES = { ballToPlayer:1, ballToOpponent:1, returning:1, hitstop:1, ballOut:1, pointOver:1, serve:1 };
+    function pauseGame(){
+      if (paused || phase === "gameOver" || !PAUSABLE_PHASES[phase]) return false;
+      paused = true;
+      pausedAt = performance.now();
+      stopLoop();
+      Sfx.stopBgm();
+      TIMER_NAMES.forEach(function(name){
+        if (timerMeta[name]) clearTimeout(timerVar(name));
+      });
+      return true;
+    }
+    function resumeGame(){
+      if (!paused) return;
+      const now = performance.now();
+      const dt = now - pausedAt;
+      paused = false;
+      // 一時停止していた分だけ、絶対時刻をまとめて後ろへずらす
+      ball.flightStart += dt;
+      opponentReactAt += dt;
+      player.cooldownUntil += dt;
+      playerSwingUntil += dt; opponentSwingUntil += dt;
+      hitstopUntil += dt; courseWindowUntil += dt; swingAt += dt;
+      TIMER_NAMES.forEach(function(name){
+        const m = timerMeta[name];
+        if (!m) return;
+        const remain = Math.max(0, m.fireAt - pausedAt);
+        timerVar(name, pt(name, m.fn, remain));
+      });
+      startLoop();
+      if ($("play").classList.contains("active")) Sfx.startBgm();
+    }
+    function isPaused(){ return paused; }
+
     /** 自分がその球に届くか。横(x)に加えて奥行き(depth)も見る。
         ネットに詰めている時に頭上をロブで抜かれると、下がり切れず届かない。 */
     function playerCanReach(){
@@ -1674,6 +1751,8 @@
     }
     function clearTimers(){
       clearTimeout(autoMissTimer); clearTimeout(arriveTimer); clearTimeout(hitstopTimer);
+      clearTimeout(endTimer); clearTimeout(serveTimer);
+      TIMER_NAMES.forEach(function(n){ delete timerMeta[n]; });
     }
     function paintRally(){ $("rallyCount").textContent = String(rally.count); }
     /** ラリーアタック中のHUD: 得点(左)とコンボ(右)をテニスの点数の代わりに出す */
@@ -1804,7 +1883,7 @@
       if (!netRushArmed) player.targetDepth = ball.targetDepth;
       $("ball").classList.remove("hidden");
       clearTimeout(autoMissTimer);
-      autoMissTimer = setTimeout(function(){
+      autoMissTimer = pt("autoMiss", function(){
         if (phase === "ballToPlayer") miss("late");
       }, duration + ShotSystem.LATE_MS);
     }
@@ -1829,7 +1908,7 @@
       ball.smash = !!shot.smash;
       opponentReactAt = ball.flightStart + opp.reactionMs + (shot.smash ? 90 : 0);
       clearTimeout(arriveTimer);
-      arriveTimer = setTimeout(opponentArrives, shot.duration);
+      arriveTimer = pt("arrive", opponentArrives, shot.duration);
     }
 
     /* 相手にボールが届いた瞬間。個性(OPPONENTS の値)はすべてここで効く */
@@ -1864,7 +1943,7 @@
         stats.outs += 1;
         const outX = opponent.x < 50 ? 106 : -6;
         const dur = Math.max(opp.minDuration * 0.7, rallyBase() * opp.durationMul);
-        arriveTimer = setTimeout(function(){ launchOut(outX, dur); }, RETURN_PAUSE);
+        arriveTimer = pt("arrive", function(){ launchOut(outX, dur); }, RETURN_PAUSE);
         return;
       }
 
@@ -1900,7 +1979,7 @@
       applyTell({ dir: targetX < 50 ? "L" : "R", charge: charge });
       const pause = RETURN_PAUSE + (charge ? opp.tellMs : 0);
       const finalTargetX = targetX;
-      arriveTimer = setTimeout(function(){
+      arriveTimer = pt("arrive", function(){
         applyTell(null);
         launchToPlayer(finalTargetX, charge ? duration * 0.85 : duration, retArc,
           { smash: isSmash, depth: retDepth, lob: lobOverPlayer });
@@ -1913,7 +1992,7 @@
       ball.fromX = opponent.x; ball.fromY = opponentY();
       ball.targetX = targetX; ball.targetY = Court.PLAYER_Y;
       ball.flightStart = performance.now(); ball.flightDuration = duration; ball.arc = 42; ball.smash = false;
-      arriveTimer = setTimeout(function(){
+      arriveTimer = pt("arrive", function(){
         if (phase !== "ballOut") return;
         Fx.judgePop("out", Court.toCssX(clamp(targetX, 2, 98)));
         pointFor("player");
@@ -1922,7 +2001,7 @@
 
     /** タップ/スペース。ballToPlayer の間だけ意味を持つ。戻り値は判定ティア(or null) */
     function swing(now){
-      if (phase !== "ballToPlayer") return null;
+      if (paused || phase !== "ballToPlayer") return null;
       now = (typeof now === "number") ? now : performance.now();
       if (now < player.cooldownUntil) return null;
       const arrivalAt = ball.flightStart + ball.flightDuration;
@@ -1976,7 +2055,7 @@
       Fx.judgePop(smash ? "smash" : (tier === "ok" ? (delta < 0 ? "early" : "late") : tier), cssX);
       Fx.burst(cssX, 100 - Court.PLAYER_Y, smash ? "smash" : tier);
       if (smash) { Sfx.smash(); Fx.shake(); } else Sfx.hit(tier);
-      hitstopTimer = setTimeout(fire, HITSTOP_MS);
+      hitstopTimer = pt("hitstop", fire, HITSTOP_MS);
       return tier;
     }
     function shotCtx(smash){
@@ -1996,7 +2075,7 @@
 
     /** スワイプ/矢印キーで決めたコース。スイング直後の窓(SWIPE_WINDOW_MS)内だけ効く */
     function applyCourse(course){
-      if (!course) return false;
+      if (paused || !course) return false;
       const now = performance.now();
       if (now > courseWindowUntil) return false;
       if (phase === "hitstop" && pendingShot) {
@@ -2018,7 +2097,7 @@
         lastShot.course = course; lastShot.smash = smash; lastShot.targetX = shot.targetX;
         lastShot.duration = shot.duration; lastShot.arc = shot.arc;
         clearTimeout(arriveTimer);
-        arriveTimer = setTimeout(opponentArrives, Math.max(0, ball.flightStart + shot.duration - now));
+        arriveTimer = pt("arrive", opponentArrives, Math.max(0, ball.flightStart + shot.duration - now));
         Fx.litDir(course);
         return true;
       }
@@ -2033,7 +2112,7 @@
       Fx.bounce(el().player, "miss");
       stats.playerMisses += 1;
       lastShot = { tier:"miss", deltaMs:null, course:null, targetX:null, duration:null, arc:null, reason: reason };
-      if (isRally()) { Sfx.pointLose(); phase = "gameOver"; setTimeout(finish, 700); return; }
+      if (isRally()) { Sfx.pointLose(); phase = "gameOver"; endTimer = pt("end", finish, 700); return; }
       pointFor("opponent");
     }
 
@@ -2052,9 +2131,9 @@
       if (who === "player") Sfx.pointWin(); else { Sfx.pointLose(); gauge = Math.max(0, gauge - 20); paintGauge(); }
       if (lastLabels.gameOver) {
         phase = "gameOver";
-        setTimeout(finish, 600);
+        endTimer = pt("end", finish, 600);
       } else {
-        setTimeout(function(){ phase = "serve"; serve(); }, 700);
+        serveTimer = pt("serveNext", function(){ phase = "serve"; serve(); }, 700);
       }
     }
 
@@ -2142,7 +2221,7 @@
       Sfx.startBgm();
       Progress.applyEquipped();
       startLoop();
-      setTimeout(function(){ if (phase === "serve") serve(); }, 600);
+      serveTimer = pt("serveNext", function(){ if (phase === "serve") serve(); }, 600);
     }
 
     function loop(now){
@@ -2204,7 +2283,8 @@
       };
     }
 
-    return { begin, swing, applyCourse, forceCourse, debugState, toggleNetRush, paintNetBtn };
+    return { begin, swing, applyCourse, forceCourse, debugState, toggleNetRush, paintNetBtn,
+      pause: pauseGame, resume: resumeGame, isPaused: isPaused };
   })();
 
   /* =========================================================
@@ -2309,6 +2389,14 @@
       return b;
     }
     let current = null; // { mode, stage }
+    const MATCH_WINS = 2;   // 先取ゲーム数(2ゲーム先取で決着)
+    let matchScore = { player:0, opponent:0 };
+
+    function paintMatchScore(){
+      const el = $("vsName");
+      if (!el || matchScore.player + matchScore.opponent === 0) return;
+      el.textContent += "（" + matchScore.player + "-" + matchScore.opponent + "）";
+    }
 
     const Tournament = {
       // force: テスト用。未到達の相手にも挑める
@@ -2318,30 +2406,53 @@
         stage = clamp(stage | 0, 0, maxStage);
         t.lastStage = stage; saveT(t);
         current = { mode:"tournament", stage: stage };
+        matchScore = { player:0, opponent:0 };   // 新しい相手 = 新しいマッチ
         Sfx.unlock();
         TennisGame.begin({ opponent: OPPONENTS[stage], meta: current, onEnd: Tournament.onEnd });
+        paintMatchScore();
+      },
+      /** 同じ相手との次のゲーム(マッチがまだ決着していない時) */
+      nextGame: function(){
+        TennisGame.begin({ opponent: OPPONENTS[current.stage], meta: current, onEnd: Tournament.onEnd });
+        paintMatchScore();
       },
       onEnd: function(res){
-        const t = loadT();
         const stage = current.stage;
         const isLast = stage >= OPPONENTS.length - 1;
-        if (res.win) {
+        if (res.win) matchScore.player += 1; else matchScore.opponent += 1;
+        const decided = matchScore.player >= MATCH_WINS || matchScore.opponent >= MATCH_WINS;
+        const box = $("resultBtns");
+        box.innerHTML = "";
+
+        if (!decided) {
+          // マッチはまだ途中。この1ゲームの勝敗だけ見せ、進行(実績/勝ち抜き)は保留する
+          $("rankVal").textContent = res.win ? "ゲーム獲得" : "ゲーム落とす";
+          $("resultSub").textContent = "vs " + opp_name(stage) + "（" + matchScore.player + "-" + matchScore.opponent + "）";
+          box.appendChild(btn("bigBtn", "次のゲームへ", function(){ Tournament.nextGame(); }));
+          box.appendChild(btn("ghostBtn", "モード選択へ", function(){ paintModes(); show("modes"); }));
+          return;
+        }
+
+        // マッチ決着。ここから先は従来どおり(res.win を matchWin に読み替えただけ)
+        const matchWin = matchScore.player > matchScore.opponent;
+        const t = loadT();
+        if (matchWin) {
           t.beaten[OPPONENTS[stage].id] = (t.beaten[OPPONENTS[stage].id] || 0) + 1;
           if (!isLast) t.bestStage = Math.max(t.bestStage, stage + 1);
           else t.cleared = true;
           saveT(t);
         }
-        $("rankVal").textContent = res.win ? (isLast ? "優勝！" : "WIN") : "LOSE";
-        const box = $("resultBtns");
-        box.innerHTML = "";
-        if (res.win && !isLast) {
+        $("rankVal").textContent = matchWin ? (isLast ? "優勝！" : "WIN") : "LOSE";
+        $("resultSub").textContent = "vs " + opp_name(stage) + "（" + matchScore.player + "-" + matchScore.opponent + "）";
+        if (matchWin && !isLast) {
           box.appendChild(btn("bigBtn", "次の相手: " + OPPONENTS[stage + 1].name, function(){ Tournament.start(stage + 1); }));
         } else {
-          box.appendChild(btn("bigBtn", res.win ? "もう一度" : "再挑戦", function(){ Tournament.start(stage); }));
+          box.appendChild(btn("bigBtn", matchWin ? "もう一度" : "再挑戦", function(){ Tournament.start(stage); }));
         }
         box.appendChild(btn("ghostBtn", "対戦相手一覧へ", function(){ paintLadder(); show("ladder"); }));
       },
     };
+    function opp_name(stage){ return OPPONENTS[stage].name; }
 
     const RALLY_GAME_ID = "tennis";   // Firestore の leaderboard/{gameId}
     const Rally = {
@@ -2441,6 +2552,31 @@
      ========================================================= */
   $("startBtn").addEventListener("click", function(){ Sfx.unlock(); Modes.paintModes(); show("modes"); });
   $("netBtn").addEventListener("click", function(e){ e.preventDefault(); TennisGame.toggleNetRush(); });
+
+  /* 一時停止。ボタン/Escapeキー/タブが隠れた時のいずれからも同じ doPause() を通す。
+     戻ってきた時は自動再開しない(見ていない間にラリーが動き出さないように、
+     必ず「再開する」を押させる)。 */
+  function doPause(){
+    if (!TennisGame.pause()) return;
+    $("pauseOverlay").hidden = false;
+  }
+  function doResume(){
+    TennisGame.resume();
+    $("pauseOverlay").hidden = true;
+  }
+  $("pauseBtn").addEventListener("click", function(e){ e.preventDefault(); doPause(); });
+  $("resumeBtn").addEventListener("click", function(e){ e.preventDefault(); doResume(); });
+  $("pauseQuitBtn").addEventListener("click", function(e){
+    e.preventDefault();
+    $("pauseOverlay").hidden = true;   // resume はしない(このままモード選択へ離脱)
+    Modes.paintModes();
+    show("modes");
+  });
+  window.addEventListener("keydown", function(e){
+    if (e.code !== "Escape" || !$("play").classList.contains("active")) return;
+    e.preventDefault();
+    if (TennisGame.isPaused()) doResume(); else doPause();
+  });
   function paintMute(){
     const on = Sfx.isMuted();
     $("muteBtn").textContent = on ? "🔇" : "🔊";
@@ -2465,8 +2601,13 @@
   // タブが隠れたらBGMを止める(バックグラウンド再生・電池消費対策)。
   // 戻ってきた時、プレイ画面のままなら鳴らし直す。
   document.addEventListener("visibilitychange", function(){
-    if (document.hidden) { Sfx.stopBgm(); return; }
-    if ($("play").classList.contains("active")) Sfx.startBgm();
+    if (document.hidden) {
+      Sfx.stopBgm();
+      if ($("play").classList.contains("active")) doPause();   // 見ていない間にラリーを進めない
+      return;
+    }
+    // 復帰時は自動再開しない。ミュートしていなければBGMだけ鳴らし直す(タイトル等にいる場合)
+    if ($("play").classList.contains("active") && !TennisGame.isPaused()) Sfx.startBgm();
   });
   window.addEventListener("pagehide", function(){ Sfx.stopBgm(); });
 
@@ -2480,6 +2621,7 @@
     begin: TennisGame.begin, swing: TennisGame.swing, applyCourse: TennisGame.applyCourse,
     forceCourse: TennisGame.forceCourse, debugState: TennisGame.debugState,
     toggleNetRush: TennisGame.toggleNetRush,
+    pause: doPause, resume: doResume, isPaused: TennisGame.isPaused,
     startMode: function(mode, opts){
       opts = opts || {};
       if (mode === "tournament") Modes.Tournament.start(opts.stage || 0, !!opts.force);

@@ -111,6 +111,22 @@ glue at the bottom).
   flood fill — do the same for any new character. `art/funifuni.png` / `kotokoto.png` (60×60 crops
   from LINE sticker sheets) remain only as the `poseFile()` fallback. `art/title-bg.png` is the
   app-wide background (`#app`), dimmed under `#play`.
+- **Pause**: every `setTimeout` inside `TennisGame` that matters for correctness goes through
+  `pt(name, fn, delay)`, which records `{fn, fireAt}` in `timerMeta[name]` alongside the native
+  timer id. `pause()` cancels each named timer and freezes `paused=true`; `resume()` shifts every
+  absolute timestamp (`ball.flightStart`, `opponentReactAt`, `*cooldownUntil`, `*SwingUntil`,
+  `hitstopUntil`, `courseWindowUntil`) forward by the paused duration and reschedules each timer
+  for its *remaining* delay via the same `pt()`. `swing()`/`applyCourse()` both bail out early when
+  `paused`. The outer glue calls `TennisGame.pause()` on `visibilitychange` (hidden) and never
+  auto-resumes — the player must press "再開する". Adding a new mid-rally timer means routing it
+  through `pt()` too, or it will silently keep running while "paused".
+- **Best-of-N matches**: `TennisGame` still only knows about one game (`begin()` → `onEnd(result)`).
+  `Modes.Tournament` wraps that in a match: `matchScore` (module-local) counts games won per side,
+  `MATCH_WINS = 2`. `onEnd` increments it and, while undecided, shows a "次のゲームへ" button
+  (`Tournament.nextGame()`) instead of progressing — tournament advancement, `beaten` counts, and
+  the achievement-relevant `matchWin` flag only apply once someone reaches `MATCH_WINS`. Per-game
+  achievements (`love_game`, `no_miss_game`, etc.) still fire every game via `Progress.onResult()`,
+  unchanged. Rally Attack is untouched (still a single endless run).
 
 ## Scope
 
@@ -121,8 +137,10 @@ sporty `art/<char>-{idle,run,swing}.png` set (fal.ai, generated in masa's local 
 to 320px here); `art/funifuni.png` / `kotokoto.png` remain as the `poseFile()` fallback.
 
 Since then: BGM, a global mute, depth/forward movement with lob/drop/net-rush, a howto screen,
-PNG art for のそのそ, per-character stats, opponent drop shots, and a perspective zoom on depth.
-Deliberately still out: sets/matches (a game is a single game).
+PNG art for のそのそ, per-character stats, opponent drop shots, a perspective zoom on depth, a
+pause (button / Escape / tab-hide) that correctly rewinds every in-flight timer, and best-of-2
+matches in Tournament mode. Still out: seven characters remain SVG-only (no PNG art), and
+opponents don't have per-character stat panels the way the player does.
 - **Character stats** live on each `CHARACTERS` entry as `stats:{reach,timing,gauge,foot}` (1–5,
   3 = neutral, every character totals 12). `playerStatsFor()` turns them into multipliers that
   only touch the *player*: reach radius, `ShotSystem.judge(delta, winMul)` window width, gauge gain,
