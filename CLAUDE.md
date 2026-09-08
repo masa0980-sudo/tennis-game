@@ -86,9 +86,17 @@ glue at the bottom).
   ball* (`need = dist / remain`) rather than sprinting and freezing — keep that when touching
   `updateOpponent()`.
 - **Audio**: `Sfx` owns one `AudioContext`. Effects are one-shot `tone()`s; the BGM is a 6-layer
-  look-ahead scheduler inside the same module (`startBgm/stopBgm/bgmStats`; ~42 nodes/s measured,
-  schedule 0.6 s ahead, abandon catch-up when behind — same lessons as neon-void). `setMuted()`
-  drives `master.gain` and is persisted in `tennis-game:muted`; the 🔊 button is global.
+  look-ahead scheduler inside the same module (`startBgm(themeKey)/stopBgm/bgmStats`; schedule
+  0.6 s ahead, abandon catch-up when behind — same lessons as neon-void). There are 4 `THEMES`
+  (`light`/`tense`/`heavy`/`arcade`: bpm, 4-bar chord/lead/bass tables, oscillator waves, gains,
+  and a `subKick` flag), each with 4-tone (7th) chords played on every beat plus a slightly
+  detuned unison layer for thickness (~33 nodes/s measured for `light`, the densest theme — still
+  a fraction of neon-void's 219–306/s worst case). `bgmThemeFor(opp.id)` maps opponent → theme
+  (rusher→tense, power/champion→heavy, machine→arcade, else light) and `TennisGame.begin()` passes
+  it to `startBgm()`; calling `startBgm()` with no/unknown key keeps whatever theme was last
+  playing (used by `resumeGame()` and the `visibilitychange` handler so pause/tab-hide never
+  resets the theme). `setMuted()` drives `master.gain` and is persisted in `tennis-game:muted`;
+  the 🔊 button is global.
 - **Rally phases**: `serve → ballToPlayer → hitstop → ballToOpponent → returning → ballToPlayer …`,
   ending in `pointOver` / `gameOver`; `ballOut` is the opponent's shot sailing wide. Ball position
   is lerped each frame with a fake arc (`hover = arc*4t(1-t)`); logic uses the lerped x, the arc is
@@ -136,10 +144,12 @@ achievements/unlocks with hit particles, screen shake and judgment popups. Chara
 sporty `art/<char>-{idle,run,swing}.png` set (fal.ai, generated in masa's local session, downscaled
 to 320px here); `art/funifuni.png` / `kotokoto.png` remain as the `poseFile()` fallback.
 
-Since then: BGM, a global mute, depth/forward movement with lob/drop/net-rush, a howto screen,
-PNG art for のそのそ, per-character stats, opponent drop shots, a perspective zoom on depth, a
-pause (button / Escape / tab-hide) that correctly rewinds every in-flight timer, and best-of-2
-matches in Tournament mode. Still out: seven characters remain SVG-only (no PNG art), and
+Since then: BGM (now 4 opponent-strength themes, see Audio above), a global mute, depth/forward
+movement with lob/drop/net-rush, a howto screen, PNG art for all 5 tournament opponents
+(もこもこ/ぺたぺた/ぴよぴよ/ぴょんぴょん/のそのそ/ぱたぱた — one extra since ぱたぱた is the
+champion), per-character stats, opponent drop shots, a perspective zoom on depth, a pause
+(button / Escape / tab-hide) that correctly rewinds every in-flight timer, and best-of-2 matches
+in Tournament mode. Still out: 2 non-opponent characters (けろけろ/ちくちく) remain SVG-only, and
 opponents don't have per-character stat panels the way the player does.
 - **Character stats** live on each `CHARACTERS` entry as `stats:{reach,timing,gauge,foot}` (1–5,
   3 = neutral, every character totals 12). `playerStatsFor()` turns them into multipliers that

@@ -654,10 +654,16 @@
       const t = now();
       [523.25, 659.25, 783.99, 1046.5].forEach(function(f, i){ tone(t + i * 0.12, { type:"sine", freq:f, dur:0.22, peak:0.26 }); });
     }
-    /* ================== BGM（多層構成の先読みスケジューラ） ==================
-       キック/ハイハット/スネア/ベース/コード/リードの6レイヤーを重ねる。
-       コード進行は C→G→Am→F(王道のポップ進行)で、4小節=64ステップを1ループとし、
-       小節ごとにリードとベースの型を変えて単調さを避ける。
+    /* ================== BGM（複数テーマ・多層構成の先読みスケジューラ） ==================
+       キック/ハイハット/スネア/ベース/コード(パッド)/リードの6レイヤーを重ねる。
+       対戦相手の強さに応じて startBgm(themeKey) でテーマを切り替える(呼び出し側は
+       bgmThemeFor(opp.id) で決定。TennisGame.begin() 参照):
+         light  = ルーキー/ねばりの守護神(既定)。王道ポップ進行 C→G→Am→F を7th化して厚みを出す
+         tense  = ネットラッシャー。短調・速めのテンポで16分アルペジオがせわしなく詰め寄る
+         heavy  = パワーヒッター/チャンピオン。テンポを落とし短調+ノコギリ波パッド+
+                  サブキックで重心を下げ、強敵らしい重厚感を出す
+         arcade = ラリーアタック。速いテンポで駆け上がるリードの爽快な進行
+       4小節=64ステップを1ループとし、小節ごとにリード/ベースの型を変える(全テーマ共通)。
 
        neon-void で「BGMが途切れる」を潰した時の対策をそのまま持ち込んでいる:
         ・先読みは0.6秒。0.15秒だと主スレッドが一瞬詰まっただけで予約が尽きて途切れる
@@ -665,42 +671,114 @@
           「詰まる→大量発音→もっと詰まる」の悪循環になる
         ・1回の実行で予約する上限も設ける(guard)
         ・ノイズ音源は毎回作らず、1本のバッファを使い回す(GC対策)
-        ・フィルターは音ごとに作らず共有する。発音数もこの構成で毎秒約30ノードに収め、
-          neon-void の最も重い面(毎秒219〜306)の1/7程度にしてある
+        ・フィルターは音ごとに作らず共有する。発音数はこの構成(パッドを拍ごとに厚めに重ねる
+          light テーマ基準)で毎秒40ノード程度に収め、neon-void の最も重い面(毎秒219〜306)の
+          1/5程度にしてある
         ・1音の失敗で無音にならないよう try/catch するが、握りつぶさず件数を数える */
-    const BGM_BPM = 132;
-    const BGM_STEP = 60 / BGM_BPM / 4;    // 16分音符
     const SCHEDULE_AHEAD = 0.6;           // 先読み(秒)
     const SCHED_INTERVAL_MS = 50;         // スケジューラの実行間隔
-    const BGM_STEPS = 64;                 // 4小節 × 16ステップ
-
-    // A=0 とした半音オフセット。C=3, E=7, G=10, F=8, D=5, B=2
-    const CHORDS = [
-      { tones:[3, 7, 10], bass:3  },   // C
-      { tones:[10, 14, 17], bass:-2 }, // G(ベースは下のG)
-      { tones:[0, 3, 7], bass:0  },    // Am
-      { tones:[8, 12, 15], bass:-4 },  // F(ベースは下のF)
-    ];
-    // 度数インデックス(0..2=コード構成音, 3=ルート+オクターブ, 4=5度+オクターブ, null=休符)
-    const LEAD = [
-      [0,null,2,null, 3,null,2,1, null,2,null,3, 4,null,2,null],
-      [2,null,1,null, 0,null,1,2, null,3,null,2, 1,null,0,null],
-      [0,null,2,3, null,4,null,3, 2,null,1,null, 2,3,null,null],
-      [4,3,null,2, null,1,null,0, 1,null,2,null, 3,null,4,null],
-    ];
-    const BASSLINE = [
-      [0,null,null,0, null,null,0,null, 0,null,null,0, null,0,null,null],
-      [0,null,0,null, null,0,null,0, 0,null,0,null, null,0,null,0],
-      [0,null,null,0, null,null,0,null, 0,null,null,0, null,0,0,null],
-      [0,null,0,null, 0,null,null,0, 0,null,0,null, 0,null,0,0],
-    ];
+    const BGM_STEPS = 64;                 // 4小節 × 16ステップ(全テーマ共通)
 
     function noteHz(semi){ return 110 * Math.pow(2, semi / 12); }
+    // 度数インデックス(0..2=三和音の構成音, 3=ルート+オクターブ, 4=5度+オクターブ, null=休符)
     function degreeSemi(chord, deg){
       if (deg === 3) return chord.tones[0] + 12;
       if (deg === 4) return chord.tones[2] + 12;
       return chord.tones[deg];
     }
+
+    // A=0 とした半音オフセット。C=3, E=7, G=10, F=8, D=5, B=2, Bb=1
+    const THEMES = {
+      light: {
+        bpm: 132, chordWave:"triangle", leadWave:"square", bassWave:"sawtooth",
+        chordGain:0.045, leadGain:0.075, bassGain:0.34, subKick:false,
+        chords: [
+          { tones:[3,7,10,14],   bass:3  },   // CM7
+          { tones:[10,14,17,20], bass:-2 },   // G7(ベースは下のG)
+          { tones:[0,3,7,10],    bass:0  },   // Am7
+          { tones:[8,12,15,19],  bass:-4 },   // FM7(ベースは下のF)
+        ],
+        lead: [
+          [0,null,2,null, 3,null,2,1, null,2,null,3, 4,null,2,null],
+          [2,null,1,null, 0,null,1,2, null,3,null,2, 1,null,0,null],
+          [0,null,2,3, null,4,null,3, 2,null,1,null, 2,3,null,null],
+          [4,3,null,2, null,1,null,0, 1,null,2,null, 3,null,4,null],
+        ],
+        bass: [
+          [0,null,null,0, null,null,0,null, 0,null,null,0, null,0,null,null],
+          [0,null,0,null, null,0,null,0, 0,null,0,null, null,0,null,0],
+          [0,null,null,0, null,null,0,null, 0,null,null,0, null,0,0,null],
+          [0,null,0,null, 0,null,null,0, 0,null,0,null, 0,null,0,0],
+        ],
+      },
+      tense: {
+        bpm: 150, chordWave:"triangle", leadWave:"square", bassWave:"sawtooth",
+        chordGain:0.04, leadGain:0.07, bassGain:0.3, subKick:false,
+        chords: [
+          { tones:[0,3,7],    bass:0  },   // Am
+          { tones:[10,14,17], bass:-2 },   // G
+          { tones:[8,12,15],  bass:-4 },   // F
+          { tones:[7,11,14],  bass:-5 },   // E(ハーモニックマイナーの導音で緊張を作る)
+        ],
+        lead: [
+          [0,1,2,3, 2,1,0,1, 2,3,4,3, 2,1,0,1],
+          [0,1,2,1, 0,1,2,3, 2,1,0,1, 2,3,2,1],
+          [0,1,2,3, 2,3,4,3, 2,1,0,1, 2,1,0,1],
+          [0,null,1,2, 3,2,1,0, 1,2,3,4, 3,2,1,0],
+        ],
+        bass: [
+          [0,0,null,0, 0,null,0,0, 0,0,null,0, 0,null,0,0],
+          [0,0,null,0, 0,0,null,0, 0,0,null,0, 0,0,null,0],
+          [0,0,null,0, 0,null,0,0, 0,0,null,0, 0,null,0,0],
+          [0,0,null,0, 0,0,null,0, 0,0,null,0, 0,0,0,null],
+        ],
+      },
+      heavy: {
+        bpm: 100, chordWave:"sawtooth", leadWave:"triangle", bassWave:"sawtooth",
+        chordGain:0.05, leadGain:0.06, bassGain:0.38, subKick:true,
+        chords: [
+          { tones:[5,8,12],  bass:-7  },   // Dm
+          { tones:[1,5,8],   bass:-11 },   // Bb
+          { tones:[8,12,15], bass:-4  },   // F
+          { tones:[3,7,10],  bass:3   },   // C
+        ],
+        lead: [
+          [0,null,null,null, null,null,2,null, null,null,null,null, 1,null,null,null],
+          [0,null,null,null, null,null,1,null, null,null,null,null, 2,null,null,null],
+          [0,null,null,null, null,null,2,null, null,null,null,null, 0,null,null,null],
+          [2,null,null,null, null,null,1,null, null,null,null,null, 0,null,null,null],
+        ],
+        bass: [
+          [0,null,null,null, 0,null,null,null, 0,null,null,null, 0,null,null,null],
+          [0,null,null,null, 0,null,null,null, 0,null,null,null, 0,null,null,null],
+          [0,null,null,null, 0,null,null,null, 0,null,null,null, 0,null,null,null],
+          [0,null,null,null, 0,null,null,null, 0,null,null,null, 0,null,0,null],
+        ],
+      },
+      arcade: {
+        bpm: 160, chordWave:"triangle", leadWave:"square", bassWave:"sawtooth",
+        chordGain:0.035, leadGain:0.07, bassGain:0.3, subKick:false,
+        chords: [
+          { tones:[3,7,10],   bass:3  },
+          { tones:[10,14,17], bass:-2 },
+          { tones:[0,3,7],    bass:0  },
+          { tones:[8,12,15],  bass:-4 },
+        ],
+        lead: [
+          [0,1,2,3, 2,1,2,3, 4,3,2,1, 0,1,2,3],
+          [2,3,1,2, 0,1,2,3, 1,2,3,4, 2,1,0,1],
+          [0,1,2,3, 4,3,2,1, 0,1,2,3, 2,1,0,null],
+          [4,3,2,1, 0,1,2,3, 2,3,4,3, 2,1,0,1],
+        ],
+        bass: [
+          [0,null,0,null, 0,null,0,null, 0,null,0,null, 0,null,0,null],
+          [0,null,0,null, 0,null,0,null, 0,null,0,null, 0,null,0,null],
+          [0,null,0,null, 0,null,0,null, 0,null,0,null, 0,null,0,null],
+          [0,null,0,null, 0,null,0,null, 0,null,0,null, 0,null,0,0],
+        ],
+      },
+    };
+    const DEFAULT_THEME = "light";
 
     let bgmOn = false, bgmStep = 0, bgmNextAt = 0, bgmTimer = null;
     let bgmErrors = 0, bgmLastError = "";
@@ -708,8 +786,11 @@
     let busGain = null;           // BGM全体の音量(効果音より下げて敷く)
     let hatFilter = null, snareFilter = null, bassFilter = null;   // 共有フィルター
     let bgmDelay = null, bgmDelayFb = null, bgmDelayWet = null;    // 余韻(残響のかわり)
+    let bgmThemeKey = DEFAULT_THEME;
+    let bgmTheme = THEMES[DEFAULT_THEME];
+    let bgmStepSec = 60 / bgmTheme.bpm / 4;   // 16分音符の長さ(秒)。テーマのbpmに応じて可変
 
-    /** BGM用の共有ノードを一度だけ組む。音ごとに作らないのが負荷対策の要。 */
+    /** BGM用の共有ノードを一度だけ組む。音ごとに作らないのが負荷対策の要。テーマが変わっても使い回す。 */
     function setupBgmBus(){
       const c = ensure();
       if (!c || busGain) return c;
@@ -720,7 +801,7 @@
       bgmDelay = c.createDelay(1.0);
       bgmDelayFb = c.createGain();
       bgmDelayWet = c.createGain();
-      bgmDelay.delayTime.value = BGM_STEP * 3;
+      bgmDelay.delayTime.value = 0.34;   // テーマ間で共有するため特定のbpmに合わせず固定値にする
       bgmDelayFb.gain.value = 0.24;
       bgmDelayWet.gain.value = 0.14;
       bgmDelay.connect(bgmDelayFb); bgmDelayFb.connect(bgmDelay);
@@ -778,29 +859,38 @@
     }
 
     function bgmStepAt(step, at){
+      const theme = bgmTheme;
+      const stepSec = bgmStepSec;
       const bar = Math.floor(step / 16) % 4;
       const i = step % 16;
-      const chord = CHORDS[bar];
+      const chord = theme.chords[bar];
 
-      if (i % 4 === 0) bgmOsc(at, 0.16, 140, 0.5, "sine", busGain, 46);     // キック
+      if (i % 4 === 0) {
+        bgmOsc(at, 0.16, 140, 0.5, "sine", busGain, 46);                              // キック
+        if (theme.subKick && i === 0) bgmOsc(at, 0.26, 58, 0.4, "sine", busGain, 40); // heavy用: 低いサブキックで重心を下げる
+      }
       if (i % 2 === 0) noiseHit(at, 0.03, 0.055, hatFilter);                // ハイハット(8分)
       if (i === 4 || i === 12) noiseHit(at, 0.11, 0.14, snareFilter);       // スネア(2・4拍)
 
-      const b = BASSLINE[bar][i];
-      if (b != null) bgmOsc(at, BGM_STEP * 2.6, noteHz(chord.bass), 0.34, "sawtooth", bassFilter);
+      const b = theme.bass[bar][i];
+      if (b != null) bgmOsc(at, stepSec * 2.6, noteHz(chord.bass), theme.bassGain, theme.bassWave, bassFilter);
 
-      // コードは小節頭と8拍目に短く重ねる(3声=一番厚いが数が少ないので軽い)
-      if (i === 0 || i === 8) {
+      // コードパッド: 拍ごと(4回/小節)に重ね、7th(4声)まで含めて厚みを出す。
+      // さらにごくわずかにデチューンした層を重ねてコーラス感を足す(合わせて最大8音/回)。
+      if (i % 4 === 0) {
+        const dur = stepSec * 3.4;
         chord.tones.forEach(function(t){
-          bgmOsc(at, BGM_STEP * 2.2, noteHz(t) * 2, 0.05, "triangle", busGain);
+          const hz = noteHz(t) * 2;
+          bgmOsc(at, dur, hz, theme.chordGain, theme.chordWave, busGain);
+          bgmOsc(at, dur, hz * 1.004, theme.chordGain * 0.45, "sine", busGain);
         });
       }
 
-      const d = LEAD[bar][i];
+      const d = theme.lead[bar][i];
       if (d != null) {
         const hz = noteHz(degreeSemi(chord, d)) * 2;
-        bgmOsc(at, BGM_STEP * 1.6, hz, 0.075, "square", busGain);
-        if (i % 8 === 0 && bgmDelay) bgmOsc(at, BGM_STEP * 1.6, hz, 0.03, "square", bgmDelay);
+        bgmOsc(at, stepSec * 1.6, hz, theme.leadGain, theme.leadWave, busGain);
+        if (i % 8 === 0 && bgmDelay) bgmOsc(at, stepSec * 1.6, hz, theme.leadGain * 0.4, theme.leadWave, bgmDelay);
       }
     }
 
@@ -811,29 +901,37 @@
       const now = c.currentTime;
       // 大きく遅れたら追いつくのを諦め、現在時刻へ飛ばして拍を取り直す
       if (bgmNextAt < now - 0.05) {
-        const skip = Math.ceil((now - bgmNextAt) / BGM_STEP);
+        const skip = Math.ceil((now - bgmNextAt) / bgmStepSec);
         bgmStep += skip;
-        bgmNextAt += skip * BGM_STEP;
+        bgmNextAt += skip * bgmStepSec;
       }
       let guard = 0;
       while (bgmNextAt < now + SCHEDULE_AHEAD && guard++ < 32) {
         try { bgmStepAt(bgmStep % BGM_STEPS, bgmNextAt); }
         catch (err) { bgmErrors++; bgmLastError = String((err && err.message) || err); }
-        bgmNextAt += BGM_STEP;
+        bgmNextAt += bgmStepSec;
         bgmStep++;
       }
       bgmTimer = setTimeout(bgmTick, SCHED_INTERVAL_MS);
     }
-    function startBgm(){
+    /** themeKey を省略(または未知のキー)すると直前に鳴らしていたテーマを引き継ぐ
+        (ポーズ復帰・タブ復帰用。既に同じテーマを再生中なら何もしない)。 */
+    function startBgm(themeKey){
       const c = unlock();
-      if (!c || bgmOn) return;
+      if (!c) return;
+      const key = (themeKey && THEMES[themeKey]) ? themeKey : bgmThemeKey;
+      if (bgmOn && key === bgmThemeKey) return;
+      bgmThemeKey = key;
+      bgmTheme = THEMES[key];
+      bgmStepSec = 60 / bgmTheme.bpm / 4;
       setupBgmBus();
+      clearTimeout(bgmTimer);
       bgmOn = true; bgmStep = 0;
       bgmNextAt = c.currentTime + 0.08;
       bgmTick();
     }
     function stopBgm(){ bgmOn = false; clearTimeout(bgmTimer); }
-    function bgmStats(){ return { on: bgmOn, errors: bgmErrors, lastError: bgmLastError }; }
+    function bgmStats(){ return { on: bgmOn, theme: bgmThemeKey, errors: bgmErrors, lastError: bgmLastError }; }
 
     function lose(){
       const t = now();
@@ -1175,10 +1273,11 @@
 
   /* =========================================================
      4. Characters — 10人のマスコットと、その見た目
-        ふにふに/ことこと は idle/run/swing の3ポーズ画像(fal.ai生成の透過PNG)を持つ。
-        あとの8人はまだ画像が無いので、体色・差し色・耳の形だけを持たせて
-        SVG(MochiArt)でその場で描く。画像が用意できたら CHARACTERS に
-        idle/run/swing のパスを足すだけで自動的にそちらが使われる。
+        8人(ふにふに/ことこと/もこもこ/ぺたぺた/ぴよぴよ/ぴょんぴょん/のそのそ/ぱたぱた)は
+        idle/run/swing の3ポーズ画像(fal.ai生成の透過PNG)を持つ。残る2人(けろけろ/ちくちく。
+        いずれもトーナメントの対戦相手として使われないキャラ)はまだ画像が無いので、
+        体色・差し色・耳の形だけを持たせて SVG(MochiArt)でその場で描く。画像が用意できたら
+        CHARACTERS に idle/run/swing のパスを足すだけで自動的にそちらが使われる。
         素材は左向きに描かれているので、右を向く時は .body の --flip で反転する。
      ========================================================= */
   const CHARACTERS = [
@@ -1480,6 +1579,15 @@
       startDuration:1000, minDuration:680, durationMul:0.85, smashReachMul:0.30, lobWeak:false, tellMs:150, smashEvery:4, dropChance:0.20 },
   ];
   function findOpponent(id){ return OPPONENTS.find(function(o){ return o.id === id; }) || OPPONENTS[0]; }
+  /** 対戦相手の強さに応じてBGMテーマを選ぶ(Sfx.THEMES のキーに対応)。
+      power/champion(上位2人)は重厚な heavy、rusher は速く緊張感のある tense、
+      rally attack(machine)は爽快な arcade、それ以外(rookie/retriever/既定)は light。 */
+  function bgmThemeFor(oppId){
+    if (oppId === "rusher") return "tense";
+    if (oppId === "power" || oppId === "champion") return "heavy";
+    if (oppId === "machine") return "arcade";
+    return "light";
+  }
 
   /* ラリーアタック用の「ラリーマシン」。必ず返す(reach 100・アウト無し)代わりに、
      続けるほど球が速く・狙いが厳しくなる(難易度ランプは rampFor で計算する)。 */
@@ -2223,7 +2331,7 @@
       e.shadow.style.top = ball.y + "%";
       $("ball").classList.remove("hidden");
       show("play");
-      Sfx.startBgm();
+      Sfx.startBgm(bgmThemeFor(opp.id));
       Progress.applyEquipped();
       startLoop();
       serveTimer = pt("serveNext", function(){ if (phase === "serve") serve(); }, 600);
