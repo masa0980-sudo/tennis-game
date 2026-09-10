@@ -388,13 +388,20 @@
 <body>
 <div id="app">
 
-  <!-- ================= タイトル(キャラクター選択) ================= -->
+  <!-- ================= タイトル(表紙。タイトルと背景とボタンだけ) ================= -->
   <section id="title" class="screen active">
     <div class="titleArt">
       <span class="titleKicker">RALLY THE COURT</span>
       <h1 class="titleMain">コート・ラリー</h1>
       <span class="titleRule"></span>
     </div>
+    <button class="bigBtn" id="titleStartBtn">はじめる</button>
+  </section>
+
+  <!-- ================= キャラクター選択(表紙のボタンを押した後) ================= -->
+  <section id="select" class="screen">
+    <span class="sub">CHARACTER</span>
+    <h1 class="h2">キャラクターを選ぶ</h1>
     <p class="sub">タイミングよくタップ。スワイプでコースを打ち分けよう。</p>
     <div class="charRow" id="charRow"></div>
     <div class="charDetail" id="charDetail"></div>
@@ -433,7 +440,7 @@
       <div class="howRow"><span class="howIcon">🔁</span><span><b>ラリーアタック</b>は続けるほど球が速くなる耐久戦。記録はランキングに残る。</span></div>
       <div class="howRow"><span class="howIcon">🎖️</span><span>条件を満たすと<b>実績</b>が解放され、コートとボールの色を変えられる。</span></div>
     </div>
-    <button class="ghostBtn" id="howtoBack">タイトルへ</button>
+    <button class="ghostBtn" id="howtoBack">もどる</button>
   </section>
 
   <section id="achievements" class="screen">
@@ -444,7 +451,7 @@
     <div class="equipRow" id="courtChips"></div>
     <p class="equipTitle">ボール</p>
     <div class="equipRow" id="ballChips"></div>
-    <button class="ghostBtn" id="achBack">タイトルへ</button>
+    <button class="ghostBtn" id="achBack">もどる</button>
   </section>
 
   <!-- ================= モード選択 ================= -->
@@ -554,7 +561,7 @@
      0. 小道具
      ========================================================= */
   function $(id){ return document.getElementById(id); }
-  const SCREENS = ["title","howto","modes","ladder","play","result","achievements"];
+  const SCREENS = ["title","select","howto","modes","ladder","play","result","achievements"];
   function show(id){
     SCREENS.forEach(function(s){
       $(s).classList.toggle("active", s === id);
@@ -2663,6 +2670,7 @@
   /* =========================================================
      13. 画面の行き来
      ========================================================= */
+  $("titleStartBtn").addEventListener("click", function(){ Sfx.unlock(); show("select"); });
   $("startBtn").addEventListener("click", function(){ Sfx.unlock(); Modes.paintModes(); show("modes"); });
   $("netBtn").addEventListener("click", function(e){ e.preventDefault(); TennisGame.toggleNetRush(); });
 
@@ -2703,12 +2711,12 @@
   });
   paintMute();
   $("howtoBtn").addEventListener("click", function(){ show("howto"); });
-  $("howtoBack").addEventListener("click", function(){ show("title"); });
+  $("howtoBack").addEventListener("click", function(){ show("select"); });
   $("achBtn").addEventListener("click", function(){ paintAchievements(); show("achievements"); });
-  $("achBack").addEventListener("click", function(){ paintAchButton(); show("title"); });
+  $("achBack").addEventListener("click", function(){ paintAchButton(); show("select"); });
   $("modeTournament").addEventListener("click", function(){ Modes.paintLadder(); show("ladder"); });
   $("modeRally").addEventListener("click", function(){ Modes.Rally.start(); });
-  $("modesBack").addEventListener("click", function(){ paintAchButton(); show("title"); });
+  $("modesBack").addEventListener("click", function(){ paintAchButton(); show("select"); });
   $("ladderBack").addEventListener("click", function(){ Modes.paintModes(); show("modes"); });
 
   // タブが隠れたらBGMを止める(バックグラウンド再生・電池消費対策)。
