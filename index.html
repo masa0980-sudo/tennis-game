@@ -1094,6 +1094,54 @@
     return { fetchTop10, submitScore };
   })();
 
+  /* =========================================================
+     PlayCounts — 累計プレイ回数（Firestore, カウントのみ）
+          Rhythm_gameと同じ方針でSDKを使わずfetch()で完結させる。
+          rythm-game-mo は複数の公開ゲームでプレイ回数の記録先として共有しており、
+          このアプリは gameId "tennis" で1件のドキュメントに記録する。
+     ========================================================= */
+  const PlayCounts = (function(){
+    const PROJECT_ID = "rythm-game-mo";
+    const API_KEY = "AIzaSyBBo4f_LqJ2lfdKu8Q11oeiiYq_O-15LSc";
+    const ROOT = "https://firestore.googleapis.com/v1/projects/" + PROJECT_ID + "/databases/(default)/documents";
+
+    // 再生開始のたびに+1。失敗してもゲームプレイには一切影響させない（fire-and-forget）。
+    // 既存ドキュメントへのincrementを先に試し、無ければ(このgameIdの初回プレイ)
+    // count:1での新規作成にフォールバックする（ルール側もcount==1での新規作成のみ許可）。
+    function increment(gameId){
+      const commitUrl = ROOT + ":commit?key=" + API_KEY;
+      const docPath = "projects/" + PROJECT_ID + "/databases/(default)/documents/playCounts/" + encodeURIComponent(gameId);
+      const incrementBody = {
+        writes: [{
+          transform: {
+            document: docPath,
+            fieldTransforms: [{ fieldPath: "count", increment: { integerValue: "1" } }]
+          }
+        }]
+      };
+      const createBody = {
+        writes: [{
+          update: { name: docPath, fields: { count: { integerValue: "1" } } },
+          currentDocument: { exists: false }
+        }]
+      };
+      return fetch(commitUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(incrementBody)
+      }).then(function(res){
+        if (res.ok) return;
+        return fetch(commitUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(createBody)
+        });
+      }).catch(function(e){ console.warn("playCount increment failed:", e); });
+    }
+
+    return { increment };
+  })();
+
   const RankUI = (function(){
     function renderList(list){
       const ol = $("rankList");
@@ -2291,6 +2339,7 @@
       opp = opts.opponent || OPPONENTS[0];
       meta = opts.meta || { mode:"free", stage:null };
       onEnd = opts.onEnd || null;
+      PlayCounts.increment("tennis");   // 試合(トーナメント・ラリーアタック問わず)開始のたびに+1
       clearTimers();
       score.player = 0; score.opponent = 0;
       lastLabels = scoreLabels(0, 0);

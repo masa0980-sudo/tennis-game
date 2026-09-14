@@ -61,6 +61,12 @@ glue at the bottom).
   `RankUI` are ported from `Rhythm_game/index.html`; Rally Attack submits under gameId `tennis`,
   capped at 100000 to match the Firestore rules. A sandbox can't reach `firestore.googleapis.com`,
   so a stuck "読み込み中…" in local tests is the environment, not a bug.
+- **PlayCounts**: same no-SDK Firestore-REST approach, also ported from `Rhythm_game/index.html`.
+  `TennisGame.begin()` calls `PlayCounts.increment("tennis")` once per game (tournament game,
+  next-game-in-a-match, and Rally Attack all funnel through `begin()`, so one hook covers all of
+  them). Fire-and-forget — never await it before starting. `rythm-game-mo` is shared across
+  several separate public games for this counter; a brand-new gameId self-registers on first
+  play (the rule allows creating a doc with `count: 1`), no manual Firebase-console setup needed.
 - **`Progress`** holds achievements and unlocks in `tennis-game:progress`. `Progress.onResult(res)`
   runs once per finished game/run — add new achievements to the `ACHIEVEMENTS` table and a check
   there, not scattered through the game loop. Unlocks are cosmetic only (court gradient via
