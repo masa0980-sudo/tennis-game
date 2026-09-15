@@ -410,6 +410,7 @@
       <button class="ghostBtn" id="howtoBtn">遊び方 ／ HOW TO PLAY</button>
       <button class="ghostBtn" id="achBtn">実績 0/13</button>
     </div>
+    <div class="sub" id="playCountLabel" style="margin-top:10px;opacity:.6;"></div>
   </section>
 
   <!-- ================= 実績とアンロック ================= -->
@@ -1139,7 +1140,19 @@
       }).catch(function(e){ console.warn("playCount increment failed:", e); });
     }
 
-    return { increment };
+    // 表示用に累計プレイ回数を1件だけ取得する。無ければ(まだ誰もプレイしていない)null。
+    function fetchCount(gameId){
+      const url = ROOT + "/playCounts/" + encodeURIComponent(gameId) + "?key=" + API_KEY;
+      return fetch(url).then(function(res){
+        if (!res.ok) return null;   // 404 = まだドキュメントが無い
+        return res.json();
+      }).then(function(doc){
+        if (!doc || !doc.fields || !doc.fields.count) return null;
+        return parseInt(doc.fields.count.integerValue, 10);
+      }).catch(function(e){ console.warn("playCount fetch failed:", e); return null; });
+    }
+
+    return { increment, fetchCount };
   })();
 
   const RankUI = (function(){
@@ -2780,6 +2793,11 @@
     if ($("play").classList.contains("active") && !TennisGame.isPaused()) Sfx.startBgm();
   });
   window.addEventListener("pagehide", function(){ Sfx.stopBgm(); });
+
+  // 累計プレイ回数の表示。取れなければ空欄のまま静かに諦める(体感速度には影響させない)。
+  PlayCounts.fetchCount("tennis").then(function(count){
+    if (count != null) $("playCountLabel").textContent = "これまでに " + count + " 回プレイされています";
+  });
 
   paintCharRow();
   paintAchButton();
