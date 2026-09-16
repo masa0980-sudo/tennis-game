@@ -2675,8 +2675,7 @@
         const info = document.createElement("div");
         info.className = "info";
         info.innerHTML = '<div class="name">' + (i + 1) + '. ' + (locked ? "???" : o.name) + '</div>' +
-          '<div class="desc">' + (locked ? "前の相手に勝つと挑戦できる" : o.desc) + '</div>' +
-          (beatenN ? '<div class="state">勝利 ' + beatenN + '回</div>' : "");
+          '<div class="desc">' + (locked ? "前の相手に勝つと挑戦できる" : o.desc) + '</div>';
         row.appendChild(img); row.appendChild(info);
         if (!locked) row.appendChild(btn("fightBtn", "挑戦", function(){ Tournament.start(i); }));
         box.appendChild(row);
