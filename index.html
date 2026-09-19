@@ -2740,7 +2740,13 @@
      ========================================================= */
   $("titleStartBtn").addEventListener("click", function(){ Sfx.unlock(); show("select"); });
   $("startBtn").addEventListener("click", function(){ Sfx.unlock(); Modes.paintModes(); show("modes"); });
-  $("netBtn").addEventListener("click", function(e){ e.preventDefault(); TennisGame.toggleNetRush(); });
+  // click(=指を離した時)ではなく pointerdown で即トグルする。ラリー中の一手なので
+  // 押した瞬間に反応した方が体感が良く、タップ→離すの往復ぶんの遅れを無くせる
+  $("netBtn").addEventListener("pointerdown", function(e){ e.preventDefault(); TennisGame.toggleNetRush(); });
+  $("netBtn").addEventListener("click", function(e){
+    e.preventDefault();
+    if (e.detail === 0) TennisGame.toggleNetRush();   // キーボード(Enter/Space)からの click だけは通す
+  });
 
   /* 一時停止。ボタン/Escapeキー/タブが隠れた時のいずれからも同じ doPause() を通す。
      戻ってきた時は自動再開しない(見ていない間にラリーが動き出さないように、
