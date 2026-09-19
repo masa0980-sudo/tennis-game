@@ -1034,6 +1034,11 @@
     return { get, submit, reset };
   })();
 
+  // 開発中のPlaywrightテスト（startGame()やスコア登録を何度も呼ぶ）が本番のFirestoreに
+  // 書き込んでいた。接続先はハードコードされた本番プロジェクトなので、ローカル配信時は
+  // 書き込み系（submitScore / increment）だけを no-op にする。読み取りはそのまま。
+  const IS_LOCAL = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) || location.protocol === "file:";
+
   const Leaderboard = (function(){
     const PROJECT_ID = "rythm-game-mo";
     const API_KEY = "AIzaSyBBo4f_LqJ2lfdKu8Q11oeiiYq_O-15LSc";
@@ -1082,6 +1087,7 @@
         .catch(function(e){ console.warn("leaderboard fetch failed:", e); return null; });
     }
     function submitScore(gameId, initials, score, extra){
+      if (IS_LOCAL) { console.info("[local] leaderboard submit skipped"); return Promise.resolve(); }
       const url = ROOT + "/leaderboard/" + encodeURIComponent(gameId) + "/scores?key=" + API_KEY;
       const fields = {
         initials: toValue(String(initials || "???").slice(0, 6)),
@@ -1110,6 +1116,7 @@
     // 既存ドキュメントへのincrementを先に試し、無ければ(このgameIdの初回プレイ)
     // count:1での新規作成にフォールバックする（ルール側もcount==1での新規作成のみ許可）。
     function increment(gameId){
+      if (IS_LOCAL) return Promise.resolve();
       const commitUrl = ROOT + ":commit?key=" + API_KEY;
       const docPath = "projects/" + PROJECT_ID + "/databases/(default)/documents/playCounts/" + encodeURIComponent(gameId);
       const incrementBody = {
