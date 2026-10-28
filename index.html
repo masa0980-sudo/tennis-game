@@ -4,7 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>コート・ラリー</title>
+<script>if(/[?&]mini=1(&|$)/.test(location.search)) document.documentElement.classList.add("mini");</script>
 <style>
+  /* ミニ版(?mini=1。mini-medley の iframe から呼ばれる)では、タイトル・ミュート・一時停止を出さない */
+  .mini #title,.mini #muteBtn,.mini #pauseBtn{display:none !important;}
   :root{
     color-scheme: dark;
     --accent:#38bdf8;
@@ -562,6 +565,10 @@
      0. 小道具
      ========================================================= */
   function $(id){ return document.getElementById(id); }
+  /* ミニ版(mini-medley 用)。?mini=1&sec=<秒>&mute=<0|1>。仕様は mini-medley/CLAUDE.md */
+  const Q = new URLSearchParams(location.search);
+  const MINI = Q.get("mini") === "1";
+  const MINI_SEC = Math.max(5, parseFloat(Q.get("sec")) || 20);
   const SCREENS = ["title","select","howto","modes","ladder","play","result","achievements"];
   function show(id){
     SCREENS.forEach(function(s){
@@ -579,12 +586,12 @@
     let ctx = null, master = null;
     const MASTER_VOL = 0.35;
     const MUTE_KEY = "tennis-game:muted";
-    let muted = false;
-    try { muted = localStorage.getItem(MUTE_KEY) === "1"; } catch (e) {}
+    let muted = MINI ? Q.get("mute") === "1" : false;
+    if (!MINI) try { muted = localStorage.getItem(MUTE_KEY) === "1"; } catch (e) {}
     /** ミュートの切替。ctx は止めない(解除した瞬間に鳴らせるように)。BGMも master 経由なので一緒に消える */
     function setMuted(on){
       muted = !!on;
-      try { localStorage.setItem(MUTE_KEY, muted ? "1" : "0"); } catch (e) {}
+      if (!MINI) try { localStorage.setItem(MUTE_KEY, muted ? "1" : "0"); } catch (e) {}
       if (master) master.gain.value = muted ? 0 : MASTER_VOL;
     }
     function isMuted(){ return muted; }
@@ -2326,6 +2333,11 @@
     }
 
     function finish(){
+      if (MINI) {
+        stopLoop(); Sfx.stopBgm();
+        if (typeof onEnd === "function") onEnd({ hits: rallyRun.hits, score: rallyRun.score, maxCombo: rallyRun.maxCombo });
+        return;
+      }
       const win = lastLabels.winner === "for";
       $("result").dataset.mode = isRally() ? "rally" : "tournament";
       $("rankVal").textContent = win ? "WIN" : "LOSE";
@@ -2359,7 +2371,7 @@
       opp = opts.opponent || OPPONENTS[0];
       meta = opts.meta || { mode:"free", stage:null };
       onEnd = opts.onEnd || null;
-      PlayCounts.increment("tennis");   // 試合(トーナメント・ラリーアタック問わず)開始のたびに+1
+      if (!MINI) PlayCounts.increment("tennis");   // 試合(トーナメント・ラリーアタック問わず)開始のたびに+1
       clearTimers();
       score.player = 0; score.opponent = 0;
       lastLabels = scoreLabels(0, 0);
@@ -2472,8 +2484,11 @@
       };
     }
 
+    /* ミニ版の時間切れ: タイマーとループを止める(結果画面は出さない) */
+    function miniStop(){ clearTimers(); stopLoop(); phase = "gameOver"; Sfx.stopBgm(); }
+
     return { begin, swing, applyCourse, forceCourse, debugState, toggleNetRush, paintNetBtn,
-      pause: pauseGame, resume: resumeGame, isPaused: isPaused };
+      pause: pauseGame, resume: resumeGame, isPaused: isPaused, miniStop: miniStop };
   })();
 
   /* =========================================================
@@ -2798,7 +2813,7 @@
   document.addEventListener("visibilitychange", function(){
     if (document.hidden) {
       Sfx.stopBgm();
-      if ($("play").classList.contains("active")) doPause();   // 見ていない間にラリーを進めない
+      if (!MINI && $("play").classList.contains("active")) doPause();   // 見ていない間にラリーを進めない
       return;
     }
     // 復帰時は自動再開しない。ミュートしていなければBGMだけ鳴らし直す(タイトル等にいる場合)
@@ -2807,14 +2822,44 @@
   window.addEventListener("pagehide", function(){ Sfx.stopBgm(); });
 
   // 累計プレイ回数の表示。取れなければ空欄のまま静かに諦める(体感速度には影響させない)。
-  PlayCounts.fetchCount("tennis").then(function(count){
+  if (!MINI) PlayCounts.fetchCount("tennis").then(function(count){
     if (count != null) $("playCountLabel").textContent = "これまでに " + count + " 回プレイされています";
   });
 
   paintCharRow();
   paintAchButton();
   Progress.applyEquipped();
-  show("title");
+
+  /* ===== ミニ版(mini-medley から呼ばれる) =====
+     ラリーアタックを sec 秒だけ。読み込み → 待機 → ハブの mini-go で開始 → 時間切れか1ミスで mini-result を返す。
+     点数: ラリーの得点 ÷ 1500 × 100(100で頭打ち)。回数・ベスト・実績は書かない。 */
+  const MINI_TARGET = 1500;
+  let miniDone = false, miniTimer = null;
+  function miniBoot(){
+    window.addEventListener("message", function(e){ if (e.source === window.parent && e.data && e.data.type === "mini-go") miniGo(); });
+    window.parent.postMessage({ type: "mini-ready", game: "tennis-game" }, "*");
+    if (window.parent === window) setTimeout(miniGo, 300);   // 単独で ?mini=1 を開いたとき(デバッグ用)は自動で始める
+  }
+  function miniGo(){
+    if (miniDone || miniTimer) return;
+    Sfx.unlock();
+    TennisGame.begin({ opponent: RALLY_MACHINE, meta: { mode:"rally", stage:null }, onEnd: function(res){ endMini("miss", res); } });
+    const endAt = performance.now() + MINI_SEC * 1000;
+    miniTimer = setInterval(function(){
+      const left = Math.max(0, (endAt - performance.now()) / 1000);
+      $("vsName").textContent = "のこり " + Math.ceil(left) + "秒";
+      if (left <= 0) { TennisGame.miniStop(); endMini("time"); }
+    }, 100);
+  }
+  function endMini(reason, res){
+    if (miniDone) return; miniDone = true;
+    clearInterval(miniTimer);
+    const r = res || TennisGame.debugState().rallyRun;
+    const score = clamp(Math.round(r.score / MINI_TARGET * 100), 0, 100);
+    window.parent.postMessage({ type: "mini-result", game: "tennis-game", score: score,
+      detail: { hits: r.hits, rawScore: r.score, maxCombo: r.maxCombo, reason: reason } }, "*");
+  }
+  if (MINI) miniBoot(); else show("title");
 
   // Playwright検証用
   window.__tennis = {
@@ -2822,6 +2867,7 @@
     forceCourse: TennisGame.forceCourse, debugState: TennisGame.debugState,
     toggleNetRush: TennisGame.toggleNetRush,
     pause: doPause, resume: doResume, isPaused: TennisGame.isPaused,
+    mini: MINI,
     startMode: function(mode, opts){
       opts = opts || {};
       if (mode === "tournament") Modes.Tournament.start(opts.stage || 0, !!opts.force);

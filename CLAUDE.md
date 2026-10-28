@@ -165,3 +165,21 @@ opponents don't have per-character stat panels the way the player does.
 - **Opponent drop shots**: `OPPONENTS[].dropChance` — when the player is deep (`depth < 0.3`)
   the opponent may drop to the net (low arc 30 is the tell). `RALLY_MACHINE` has `dropChance:0`
   so leaderboard difficulty is unchanged.
+
+## Mini mode (`?mini=1`, called from mini-medley)
+
+The hub in `C:\claude\repos\mini-medley` opens this page in an iframe with `?mini=1&sec=20&mute=0|1`.
+**The protocol is specified in mini-medley's CLAUDE.md**; this section only records tennis-game's side.
+Without `mini=1` everything behaves exactly as before.
+
+- A one-line `<head>` script adds `<html class="mini">` before first paint; CSS hides `#title`, `#muteBtn`, `#pauseBtn`.
+- It plays **Rally Attack only**. `miniBoot()` posts `mini-ready` and waits; the hub's `mini-go` runs `miniGo()`, which calls
+  `TennisGame.begin({opponent: RALLY_MACHINE, meta:{mode:"rally"}, onEnd})`. The rally ends on the first miss (as usual)
+  or when `sec` runs out (`TennisGame.miniStop()` stops the timers and loop, no result screen). `#vsName` shows the countdown.
+- `finish()` has a `MINI` branch that returns before the result screen, `Scores.submit`, `RankUI` (Firestore TOP10) and
+  `Progress.onResult` (achievements) — **mini runs never write the leaderboard, best score or achievements**.
+- Score: `rally score / MINI_TARGET (1500) × 100`, clamped to 100. A perfect-timing bot scores about 1620 in 20 s
+  (9 hits), so 100 means "near-perfect"; ordinary good play lands around 40–60. Re-measure if the ramp (`rampFor`) changes.
+- Not written in mini mode: `PlayCounts` (`begin()` skips it), the mute setting (`mute=` from the hub is used in memory only).
+- The auto-pause on `visibilitychange` is disabled in mini mode (the hub's clock is wall-time).
+- Standalone check: opening `?mini=1&sec=5` directly auto-starts after 300 ms (`window.parent === window`).
